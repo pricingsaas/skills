@@ -1,5 +1,5 @@
 ---
-name: pulse-deep-dive
+name: ps-pulse-deep-dive
 description: |
   Get a competitive pricing or packaging recommendation for your SaaS product. Benchmarks your pricing against 15-20 peers, surfaces price increase trends and AI bundling patterns, and delivers a data-backed recommendation report with NRR impact modeling. Also handles packaging decisions (bundle vs. add-on vs. new tier). Requires the PricingSaaS MCP (pulse.pricingsaas.com/mcp).
 ---
@@ -249,109 +249,174 @@ For the Recommended option:
 
 ---
 
-### Phase 3: Report
+### Phase 3: Publish — single MCP call from a JSON spec
 
-Generate a professional report as a single self-contained HTML file.
-
-**Template loading — try local first, fall back to hosted:**
-```
-# Preferred: local skill bundle (Managed Agents native skills)
-read("./template.html")
-
-# Fallback: hosted mirror (ChatGPT, Claude Desktop, other MCP clients)
-web_fetch("https://share.pricingsaas.com/templates/pulse-deep-dive-v1.html")
-```
-Both files have identical content — the sync script keeps them in lockstep. Substitute all `{{TOKEN}}` placeholders with real data. If both paths fail (template not yet published for this skill), build the HTML inline using the brand tokens below.
-
-**Brand tokens (Q1-2026 trends-report family — use exactly; legacy `--ps-navi` / `--ps-lime` / `--ps-yellow` names are deprecated):**
-
-```css
---navy:       #131c3b;
---lime:       #d8e364;
---lime-dark:  #aebb36;
---cream:      #faffcc;
---blue:       #3e5dc2;
---purple:     #9fadf4;
---paper:      #ffffff;
---bone:       #f7f7f7;
---ink:        #131c3b;
---ink-80:     #2a3355;
---ink-60:     #5b6480;
---ink-40:     #8b92a8;
---ink-20:     #c5c9d4;
---ink-08:     #e8e9ed;
---ff-display: 'Aspekta', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
---ff-mono:    'Space Grotesk', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
-```
-
-**Fonts (load via Google Fonts CDN):**
-
-```css
-@import url('https://fonts.googleapis.com/css2?family=Aspekta:wght@400;500;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
-```
-
-**PricingSaaS brand mark — render as `<img class="brand-mark">`, never a CSS swatch:**
+The skill no longer generates HTML. The publish step is one tool call:
 
 ```
-https://res.cloudinary.com/dd6dkaan9/image/upload/v1768670870/branding/favicon-512px-green.png
+publish_pricing_brief_report(spec=<the JSON object below>)
 ```
 
-**Browser-tab favicon (`<link rel="icon">` in `<head>`):** also use the PricingSaaS green favicon URL above. Do NOT use `https://pulse.pricingsaas.com/favicon.ico` — that path serves the Lovable.dev default icon, not the PricingSaaS brand. Required tag:
+The MCP server fetches `template.html` (Q1-2026 trends-report design family — fonts, navy/lime/cream tokens, ring motif on cover, card-on-gray wrapper at max-width 1080px, lime-under highlight, cream key-finding card, dark navy final-recommendation panel, tile-format Data Sources grid — all baked in) and substitutes every token deterministically. No model time in the render step. Returns `structuredContent.public_url`.
 
-```html
-<link rel="icon" href="https://res.cloudinary.com/dd6dkaan9/image/upload/v1768670870/branding/favicon-512px-green.png">
+**Forbidden:** `read`, `write`, `edit`, `upload_report` for this skill. You don't touch HTML.
+
+#### Spec schema
+
+```jsonc
+{
+  "mode": "pricing" | "packaging" | "both",
+  "seed": { "name": "Notion", "slug": "notion", "logo_url": "<cloudinary URL preferred>" },
+  "meta": {
+    "report_title_h1": "<optional override; default is auto>",
+    "report_subtitle": "<optional override>",
+    "eyebrow": "<optional override; default 'PRICING BRIEF' or 'PACKAGING BRIEF'>"
+  },
+  "exec": {
+    "question": "<optional — packaging mode shows this prominently>",
+    "headline": "Recommendation in one sentence.",
+    "body_html": "2–3 sentence rationale. <b>Inline bold</b> allowed.",
+    "bullets": ["Aligns with X", "Reduces friction Y", ...]   // optional
+  },
+  "stats": [
+    { "k": "Companies analyzed", "v": "15", "accent": true },
+    { "k": "Recommended price", "v": "$0.99/credit" },
+    { "k": "Risk level", "v": "Low" },
+    { "k": "Launch timeline", "v": "Aug 11" }
+  ],
+
+  // ── PRICING MODE — pricing_tiers + price_increase_timeline ──
+  "landscape": {
+    "lede": "...",
+    "pricing_tiers": [
+      {
+        "label": "Tier 1 — Direct",
+        "framing": "Same product category and primary buyer.",
+        "companies": [ /* PricingTierRow[] */ ],
+        "takeaway": "1-line takeaway about ring deltas / median / outliers."
+      },
+      { "label": "Tier 2 — Adjacent", ... },
+      { "label": "Tier 3 — Model-match", ... }
+    ]
+  },
+  "price_increase_timeline": {
+    "lede": "...",
+    "rows": [ /* PriceIncreaseRow[] — target 10+ entries sorted by magnitude */ ]
+  },
+  "nrr_model": {   // optional — only when ARR/NRR data was provided
+    "lede": "...",
+    "rows": [ /* NrrRow[] */ ],
+    "callout": "..."
+  },
+
+  // ── PACKAGING MODE — feature_rows + decision_matrix + rollout ──
+  "landscape": {
+    "feature_lede": "...",
+    "feature_rows": [ /* FeatureLandscapeRow[] — 12-18 peers */ ],
+    "feature_takeaway": "..."
+  },
+  "patterns": {
+    "lede": "...",
+    "distribution": [
+      { "label": "Bundled into existing tier", "pct": 32 },
+      { "label": "Add-on with credits", "pct": 41, "lead": true },
+      { "label": "New tier", "pct": 18 },
+      { "label": "Beta-only / free", "pct": 9 }
+    ],
+    "callout": "Market signal sentence — what the distribution implies for the seed."
+  },
+  "decision_matrix": {
+    "rows": [ /* DecisionRow[] — Signal × (Tier-gate / Add-on / New-tier) */ ],
+    "verdict_label": "Add-on with usage-based metering",
+    "verdict_winner": "addon"
+  },
+  "rollout": {
+    "lede": "...",
+    "phases": [
+      { "stage": "Phase 1", "when": "Now → Aug 11", "title": "Beta", "body_html": "..." },
+      { "stage": "Phase 2", "when": "Aug 11 launch", "title": "Paid GA", "body_html": "..." },
+      { "stage": "Phase 3", "when": "Q4 2026", "title": "Existing customer migration", "body_html": "..." },
+      { "stage": "Phase 4", "when": "Q1 2027", "title": "Optimization & expansion", "body_html": "..." }
+    ]
+  },
+
+  // ── BOTH MODES ──
+  "current_state": {   // optional — seed's current plans table
+    "title": "Current plan structure",
+    "lede": "...",
+    "plans": [ /* PlanRow[] */ ]
+  },
+  "expertise": {
+    "lede": "...",
+    "frameworks": [
+      { "title": "Why usage-based works for compute features", "body_html": "...", "citation": "Tomasz Tunguz, 2024" },
+      ...
+    ]
+  },
+  "context_quotes": [   // optional — direct customer quotes from intake
+    { "quote": "Our procurement keeps asking why we don't have a usage tier", "attribution": "VP Sales, Acme" }
+  ],
+  "options": {
+    "lede": "...",
+    "cards": [
+      {
+        "number": "01", "title": "Tier-gate behind Business",
+        "rows": [
+          { "key": "Structure", "value": "..." },
+          { "key": "Pricing", "value": "..." },
+          { "key": "Upsell motion", "value": "..." }
+        ],
+        "risk": "medium"
+      },
+      { "number": "02", "title": "Add-on with credits", "rows": [...], "risk": "low", "recommended": true },
+      { "number": "03", "title": "New tier", "rows": [...], "risk": "high" }
+    ]
+  },
+  "secondary_findings": [   // optional — 1-3 inline context subsections
+    { "label": "AI MONETIZATION", "title": "Add-on phaseout pattern", "body_html": "..." }
+  ],
+  "final_recommendation": {   // optional — navy summary panel at bottom
+    "title": "Final recommendation",
+    "grid": [
+      { "k": "Packaging", "v": "Add-on with usage-based metering" },
+      { "k": "Price", "v": "$0.99 / 1k executions, pre-purchased in $10 credit packs" },
+      { "k": "Availability", "v": "All paid tiers (Plus, Business, Enterprise)" },
+      { "k": "Timeline", "v": "Beta now, paid GA Aug 11" }
+    ],
+    "points": [
+      "Aligns with variable cost — every execution incurs compute.",
+      "Removes friction vs. tier-gating — no plan upgrade required to try.",
+      ...
+    ]
+  },
+  "companies": [   // tile-format Data Sources grid (seed auto-added)
+    { "slug": "figma", "name": "Figma", "logo_url": "<URL>", "ring_tag": "DIRECT" },
+    { "slug": "airtable", "name": "Airtable", "ring_tag": "ADJACENT" },
+    ...
+  ]
+}
 ```
 
-**Search engine indexing — required `<head>` tag:** All reports are private/client documents and must not be indexed. Include this in every generated report:
+**Empty-data fallback:** Optional sections (`current_state`, `patterns`, `decision_matrix`, `nrr_model`, `price_increase_timeline`, `expertise`, `rollout`, `context_quotes`, `secondary_findings`, `final_recommendation`) auto-omit if absent from the spec. Required: `mode`, `seed`, `exec`, `stats`, `landscape`, `options`, `companies`.
 
-```html
-<meta name="robots" content="noindex, nofollow">
-```
+**Final response format to the user** (after the tool returns the URL):
 
-Use 24×24 in the cover lockup (next to the Aspekta-700 "pricingsaas" wordmark + mono "Pulse" chip on the navy cover). Use 16×16 in the footer.
+> **{Pricing | Packaging} Brief: {SEED_NAME}** — {N} companies analyzed
+>
+> [View report](https://share.pricingsaas.com/...)
+>
+> _2-line preview: the recommendation headline + the strongest evidence point._
 
-**Lime-under highlight** — wrap one phrase of the H1 in `<span class="lime-under">`:
+ALWAYS suggest 3 tailored next steps:
 
-```css
-.lime-under { background-image: linear-gradient(transparent 88%, rgba(216,227,100,.8) 88%, rgba(216,227,100,.8) 96%, transparent 96%); background-repeat: no-repeat; }
-```
+1. **Track competitor pricing changes** — `add_to_watchlist(slugs=[peer slugs])` + `get_pricing_news()`
+2. **Map the broader landscape** — run `pulse-market-scan` for a positioning report anchored on this same seed
+3. **Validate willingness-to-pay** — run `ask-willingness-to-pay-expert` for a buyer-side WTP anchor
 
-A thin 8% baseline band at 80% opacity — reads as an accent underline, not a highlighter bar.
+### Phase 4: Verify
 
-**Required sections — Pricing mode:**
-1. Executive Summary with recommendation (include key stats row: companies analyzed, quarters of history, headline recommendation)
-2. Current Pricing Position (target's plans + value additions since last price change)
-3. Competitive Landscape — **three separate tables by tier** (Tier 1 direct, Tier 2 adjacent, Tier 3 model-match); each table ends with a one-line "Takeaway"
-4. Price Increase Trends — comprehensive timeline table with 10+ documented increases, sorted by magnitude; not just 3 highlights
-5. Market Patterns (median increase, AI bundling, de-risking playbook, ratio compression signal)
-6. **NRR Impact Model** — quantitative projection table if ARR/NRR data was provided; otherwise omit
-7. **Pricing Expertise** — frameworks and expert context from `search_pricing_knowledge` results, with citations
-8. Recommendation — three scenarios in table format; each names a specific peer company it aligns with; include numbered rationale (6+ points)
-9. **Secondary Findings** — 1-3 contextually relevant sections (AI pricing models, vertical pricing, usage-based, etc.) based on what's unique to this company's roadmap
-10. Implementation Guidance — tied to customer's stated launch timeline and any experiments already in flight
-11. Appendix / Data Sources (all companies with PricingSaaS links)
+Use a subagent to re-query PricingSaaS and spot-check 3-5 key data claims in the report (prices, plan names, last change quarters, peer counts).
 
-**Required sections — Packaging mode (replace or supplement sections 3-8):**
-1. Executive Summary — packaging recommendation headline + key stats (companies analyzed, feature landscape coverage)
-2. Current Plan Structure — target's tiers today, any existing feature gates or add-ons
-3. Feature Landscape — table of 12-18 peers, showing how each packages the feature (bundled/gated/add-on/new tier/usage), tier it appears in, and price premium
-4. Packaging Pattern Analysis — distribution of approaches, usage-metering norms, rollout patterns across the comp set
-5. **Packaging Decision Matrix** — scored comparison of tier-gate vs. add-on vs. new tier for this specific feature + company context
-6. **Pricing Expertise** — frameworks from `search_pricing_knowledge` (feature packaging, WTP validation, rollout sequencing)
-7. Recommendation — three packaging options with peer alignment; Recommended option includes: packaging structure, price/metric, rollout sequence, and upsell motion
-8. **Rollout Playbook** — beta strategy, existing customer communication, grandfathering or migration offer, success metrics
-9. Appendix / Data Sources
-
-**Optional but high-value:** "Contextual Signals of Underpricing" section — pull direct quotes and anecdotes from the customer conversation that validate the case for a price increase (procurement remarks, CS hire feedback, competitor price gap observations). This section shows the customer their own words reflected back through a data lens.
-
-Write HTML to a temp file and upload:
-
-```
-upload_report(filename="{company}-pricing-analysis.html", file_path="/tmp/{company}-pricing-analysis.html")
-```
-
-Execute the returned `curl` command to complete the upload. Use `file_path` — never base64-encode or pass `file_content`.
 
 ### Phase 4: Verify
 
