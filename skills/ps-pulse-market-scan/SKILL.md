@@ -10,13 +10,19 @@ Map the competitive landscape **around a specific company**. Three rings — dir
 
 This is a positioning skill, not a category survey. The seed company is the anchor: their logo headlines the report, their price is highlighted on every chart, and every pattern callout is framed as "where they sit vs. the rest of the ring." Useful for product leaders defending or challenging a position, pricing strategists locating a price anchor inside a peer set, and GTM teams briefing on a target account's competitive context.
 
-If the user gives only a category (no seed company), ask once whether they have a company to anchor on. If they confirm "no seed," fall back to a category-median anchor and explicitly note that in the executive summary.
+If the user gives only a category (no seed company), automatically pick the most-tracked company in that category (highest number of recorded pricing events in the last 90 days) as the seed anchor. Note the choice in the executive summary: "Anchored on [Company] as the most-tracked company in [category]." Do not ask the user for a seed — proceed immediately.
 
 ## Output contract: structured spec, not HTML
 
 The skill's final deliverable is a JSON spec passed to `publish_market_scan_report(spec)` — the MCP server renders the HTML deterministically from a template. **You do NOT generate HTML for this skill.**
 
 Steps 3b (velocity), 3c (discounts), 3d (metrics) remain MANDATORY — the renderer needs the data fields they produce. The spec schema is detailed in Step 5.
+
+## Hard rule — no mid-run input requests
+
+**Once this skill is running, never ask the user a question.** Pre-flight validation (via `pulse-skill-verify`) has already resolved inputs. Commit to the best available assumption, note it in the Data Limitations section if needed, and complete the report. If it is genuinely impossible to produce any useful output (company cannot be found anywhere after `search_companies` + `WebSearch`), end with `cannot_proceed` and a one-sentence reason — not a question.
+
+---
 
 ## Phase 0: Confirm PricingSaaS MCP is installed
 
@@ -38,7 +44,7 @@ The skill expects one of:
 
 - **A specific company (preferred):** "How does Figma compare?", "Map Jobber's competitive landscape", "Who competes with BrowserStack?"
 - **A company + category hint:** "Figma in design tools", "Jobber in field service" — use the hint to scope the rings
-- **A category only (fallback):** "design tools pricing landscape", "field service management software" — ask once if a seed exists; if not, anchor on category median
+- **A category only (fallback):** "design tools pricing landscape", "field service management software" — auto-pick the most-tracked company in the category as the seed; note the choice in the executive summary
 
 Always converge on the same structured output: three competitive rings positioned around the seed (or category median).
 

@@ -34,26 +34,17 @@ If the call fails or the tool isn't available, stop and tell the user:
 
 Do not attempt a degraded workflow or fabricate data. The MCP is required.
 
+## Hard rule — no mid-run input requests
+
+**Once this skill is running, never ask the user a question.** Pre-flight validation (via `pulse-skill-verify`) has already resolved inputs. Use the best available assumption for anything not explicitly stated, note assumptions in the report's Data Limitations section, and complete the report. If it is genuinely impossible to produce any useful output (company cannot be found after exhaustive search), end with `cannot_proceed` and a one-sentence reason — not a question.
+
+**Defaults when context is unspecified:**
+- **Which plan?** Analyze all plans and present each tier in the comparison tables.
+- **Mode?** Default to "Both" — run pricing and packaging analysis together.
+- **Segments?** Analyze all three (SMB, mid-market, enterprise) and note the distinctions.
+- **Comparison scope?** Use same category first, broaden to adjacent SaaS if fewer than 10 peers found.
+
 ## Workflow
-
-### Phase 1: Clarify Scope
-
-Before research, clarify based on mode:
-
-**Pricing mode:**
-1. **Which plan?** Specific plan to analyze (e.g., "Business", "Pro")
-2. **Goal?** Monetization growth, competitive repositioning, or premium positioning
-3. **Segments?** SMB, mid-market, enterprise, or all three
-4. **Comparison scope?** Same category only, or broader SaaS with similar pricing attributes
-
-**Packaging mode:**
-1. **What is the feature?** Name and one-line description of what it does
-2. **Who is it for?** Which customer segment(s) would use it most
-3. **Current plan structure?** What tiers exist today
-4. **Launch timeline?** Beta now, GA in N months, or already live?
-5. **Monetization goal?** NRR growth, acquisition, upsell, or all three
-
-Skip questions the user already answered.
 
 ### Phase 2: Research
 

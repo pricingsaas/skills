@@ -42,14 +42,17 @@ If `get_status` returns successfully, note credit balance — this skill consume
 
 ---
 
-## Phase 1: Clarify scope (only if missing from the original prompt)
+## Hard rule — no mid-run input requests
 
-**Skip this phase entirely if the user's original message already states the question.** Only invoke `AskUserQuestion` when the question is genuinely ambiguous (e.g., a one-word topic like "freemium").
+**Once this skill is running, never ask the user a question.** Answer the question as stated. Use available context from `get_status()` (user's domain, team info) to tailor the answer without asking. Note any assumptions in the Data Limitations section. If the question is so vague that no meaningful answer is possible, end with `cannot_proceed` and a one-sentence reason — not a question.
 
-When asking, keep it to a single round, max 2 questions:
+## Phase 1: Clarify scope (only if the question is completely missing)
 
-1. **The question.** The exact strategy question to answer. If the user gave a topic only, ask them to phrase it as a question.
-2. **Context (optional).** Their product / segment / current pricing if relevant. Many WTP questions are general-purpose and don't need context — don't force it.
+**Skip this phase entirely if the user's original message includes any pricing-strategy question.** Only ask when the input is genuinely empty or is a one-word topic with no question attached (e.g., just "freemium" with no question).
+
+When asking, one question only:
+
+1. **The question.** The exact strategy question to answer. Phrase it as a question if they gave only a topic.
 
 ---
 
@@ -159,17 +162,18 @@ If the fan-out (Phase 2 query "<topic> common mistakes") returned a load-bearing
 
 The report is **a single self-contained `.html` file** with all CSS inline. No external dependencies except the PricingSaaS logo, the WTP wordmark, and any embedded chart images.
 
-### Template loading — try local first, fall back to hosted
+### Template loading — try local first, fall back to MCP tool
 
 ```
 # Preferred: local skill bundle (Managed Agents native skills)
 read("./template.html")
 
-# Fallback: hosted mirror (ChatGPT, Claude Desktop, other MCP clients)
-web_fetch("https://share.pricingsaas.com/templates/ask-willingness-to-pay-expert-v1.html")
+# Fallback: MCP tool (Claude Code, Claude Desktop, other MCP clients)
+# web_fetch strips HTML — use get_report_template instead
+PricingSaaS MCP:get_report_template(template_name="ask-willingness-to-pay-expert-v1")
 ```
 
-**Always load the canonical template — never invent a design.** Both files have identical content (kept in lockstep by `scripts/sync-skills-to-anthropic.mjs`). If `read("./template.html")` succeeds, use it; otherwise `web_fetch` the hosted copy. The template is the canonical source of truth for visual design (refreshed 2026-05-08, on-brand redesign with the Q1-2026 trends-report design family + WTP co-brand layer). Inline rendering is a fallback used only if BOTH paths fail.
+**Always load the canonical template — never invent a design.** If `read("./template.html")` succeeds, use it; otherwise call `get_report_template`. Do NOT use `web_fetch` for this URL — WebFetch strips HTML content and the template will be invisible. The template is the canonical source of truth for visual design (refreshed 2026-05-08, on-brand redesign with the Q1-2026 trends-report design family + WTP co-brand layer). Inline rendering is a fallback used only if BOTH paths fail.
 
 When inline, you must produce a report that is visually identical to the hosted template — same fonts, same colors, same component shapes. Do not invent a custom design.
 
