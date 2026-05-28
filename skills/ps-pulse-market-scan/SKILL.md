@@ -22,6 +22,17 @@ Steps 3b (velocity), 3c (discounts), 3d (metrics) remain MANDATORY — the rende
 
 **Once this skill is running, never ask the user a question.** Pre-flight validation (via `pulse-skill-verify`) has already resolved inputs. Commit to the best available assumption, note it in the Data Limitations section if needed, and complete the report. If it is genuinely impossible to produce any useful output (company cannot be found anywhere after `search_companies` + `WebSearch`), end with `cannot_proceed` and a one-sentence reason — not a question.
 
+## Hard rule — slug normalization
+
+**Never pass a slug with a trailing dot, TLD, or domain extension to any MCP tool.** `search_companies` results sometimes include slugs like `notion.so`, `monday.com`, or `figma.` — these are not valid slugs. Before every `get_company_details`, `get_company_history`, or any other slug-based MCP call, strip all trailing punctuation and domain extensions:
+
+- `notion.so` → `notion`
+- `monday.com` → `monday`
+- `figma.` → `figma`
+- `hubspot` → `hubspot` (already clean)
+
+The slug is always the bare name with no dots, no TLD, no trailing punctuation. If the slug from search results contains a dot, take only the part before the first dot.
+
 ---
 
 ## Phase 0: Confirm PricingSaaS MCP is installed

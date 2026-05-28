@@ -46,6 +46,10 @@ If `get_status` returns successfully, note credit balance — this skill consume
 
 **Once this skill is running, never ask the user a question.** Answer the question as stated. Use available context from `get_status()` (user's domain, team info) to tailor the answer without asking. Note any assumptions in the Data Limitations section. If the question is so vague that no meaningful answer is possible, end with `cannot_proceed` and a one-sentence reason — not a question.
 
+## Hard rule — slug normalization
+
+**If any MCP call requires a company slug, never include trailing dots, TLDs, or domain extensions.** `search_companies` results sometimes include slugs like `notion.so`, `monday.com`, or `figma.` — take only the part before the first dot. `notion.so` → `notion`, `monday.com` → `monday`, `figma.` → `figma`.
+
 ## Phase 1: Clarify scope (only if the question is completely missing)
 
 **Skip this phase entirely if the user's original message includes any pricing-strategy question.** Only ask when the input is genuinely empty or is a one-word topic with no question attached (e.g., just "freemium" with no question).

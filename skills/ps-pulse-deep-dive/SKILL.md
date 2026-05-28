@@ -38,6 +38,17 @@ Do not attempt a degraded workflow or fabricate data. The MCP is required.
 
 **Once this skill is running, never ask the user a question.** Pre-flight validation (via `pulse-skill-verify`) has already resolved inputs. Use the best available assumption for anything not explicitly stated, note assumptions in the report's Data Limitations section, and complete the report. If it is genuinely impossible to produce any useful output (company cannot be found after exhaustive search), end with `cannot_proceed` and a one-sentence reason — not a question.
 
+## Hard rule — slug normalization
+
+**Never pass a slug with a trailing dot, TLD, or domain extension to any MCP tool.** `search_companies` results sometimes include slugs like `notion.so`, `monday.com`, or `figma.` — these are not valid slugs. Before every `get_company_details`, `get_company_history`, or any other slug-based MCP call, strip all trailing punctuation and domain extensions:
+
+- `notion.so` → `notion`
+- `monday.com` → `monday`
+- `figma.` → `figma`
+- `hubspot` → `hubspot` (already clean)
+
+The slug is always the bare name with no dots, no TLD, no trailing punctuation. If the slug from search results contains a dot, take only the part before the first dot.
+
 **Defaults when context is unspecified:**
 - **Which plan?** Analyze all plans and present each tier in the comparison tables.
 - **Mode?** Default to "Both" — run pricing and packaging analysis together.
