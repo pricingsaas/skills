@@ -1,97 +1,141 @@
----
-name: ps-pulse-market-scan
-description: |
-  Map the competitive landscape around any SaaS company. Give us a company name and we'll position it against three rings of competitors — direct alternatives, adjacent players, and the broader category — producing a branded HTML report with pricing comparisons, model analysis, and positioning observations. Requires the PricingSaaS MCP (pulse.pricingsaas.com/mcp).
----
+# PricingSaaS Pulse Market Scan — Strict End-to-End Workflow
 
-# Pulse Market Scan — Company-Anchored Competitive Map
-
-Map the competitive landscape **around a specific company**. Three rings — direct competitors, less-direct / adjacent players, broader category — every section positioned relative to the seed company.
-
-This is a positioning skill, not a category survey. The seed company is the anchor: their logo headlines the report, their price is highlighted on every chart, and every pattern callout is framed as "where they sit vs. the rest of the ring." Useful for product leaders defending or challenging a position, pricing strategists locating a price anchor inside a peer set, and GTM teams briefing on a target account's competitive context.
-
-If the user gives only a category (no seed company), automatically pick the most-tracked company in that category (highest number of recorded pricing events in the last 90 days) as the seed anchor. Note the choice in the executive summary: "Anchored on [Company] as the most-tracked company in [category]." Do not ask the user for a seed — proceed immediately.
-
-## Output contract: structured spec, not HTML
-
-The skill's final deliverable is a JSON spec passed to `publish_market_scan_report(spec)` — the MCP server renders the HTML deterministically from a template. **You do NOT generate HTML for this skill.**
-
-Steps 3b (velocity), 3c (discounts), 3d (metrics) remain MANDATORY — the renderer needs the data fields they produce. The spec schema is detailed in Step 5.
+You are running a PricingSaaS **company-anchored competitive landscape** workflow.
 
 ## Hard rule — no mid-run input requests
 
-**Once this skill is running, never ask the user a question.** Pre-flight validation (via `pulse-skill-verify`) has already resolved inputs. Commit to the best available assumption, note it in the Data Limitations section if needed, and complete the report. If it is genuinely impossible to produce any useful output (company cannot be found anywhere after `search_companies` + `WebSearch`), end with `cannot_proceed` and a one-sentence reason — not a question.
+**Once this skill is running, never ask the user a question.** Pre-flight validation has already resolved inputs. Commit to the best available assumption, note it in the executive summary or Data Limitations, and complete the report. If it is genuinely impossible to produce any useful output (company cannot be found anywhere), end with `cannot_proceed` and a one-sentence reason — not a question.
 
-## Hard rule — slug normalization
+## Non-negotiable execution rule
 
-**Never pass a slug with a trailing dot, TLD, or domain extension to any MCP tool.** `search_companies` results sometimes include slugs like `notion.so`, `monday.com`, or `figma.` — these are not valid slugs. Before every `get_company_details`, `get_company_history`, or any other slug-based MCP call, strip all trailing punctuation and domain extensions:
+You must follow these instructions end to end. Do not stop after a preview, summary, partial findings, or chat-only answer. The required final deliverable is a hosted HTML report. Output the completed JSON spec as your final message — the poll worker renders and delivers it.
 
-- `notion.so` → `notion`
-- `monday.com` → `monday`
-- `figma.` → `figma`
-- `hubspot` → `hubspot` (already clean)
+**You do NOT generate HTML for this skill.** Build a structured JSON spec instead — the renderer guarantees all nine sections in order, all CSS, all section headings, the comparable-units chart, and the data-availability fallbacks. The spec schema lives in `## Mandatory report template` below.
 
-The slug is always the bare name with no dots, no TLD, no trailing punctuation. If the slug from search results contains a dot, take only the part before the first dot.
+Steps 3b (velocity), 3c (discounts), 3d (metrics) remain MANDATORY because their data populates the spec fields the renderer needs.
+
+If any required step cannot be completed, do not silently substitute a weaker approach. State exactly which step failed, why it failed, and what evidence or output was still produced.
 
 ---
 
-## Phase 0: Confirm PricingSaaS MCP is installed
+## Required user inputs
 
-Before any research, verify the MCP is reachable:
+The user request must include either:
+
+- A **specific seed company** (preferred), e.g. "How does Figma compare?", "Map Jobber's competitive landscape", "Who competes with BrowserStack?"
+- A **category-only request** as fallback, e.g. "field service management software pricing landscape"
+
+If only a category is given, automatically pick the most-tracked company in that category (highest number of pricing events in the last 90 days via `search_companies_advanced`) as the seed. Note the choice in the executive summary: "Anchored on [Company] as the most-tracked company in [category]." Do not ask the user for a seed — proceed immediately.
+
+The skill always converges on the same structured output: three competitive rings positioned around the seed (or category median in fallback).
+
+---
+
+## Required tools
+
+Use the PricingSaaS MCP. Start by calling:
 
 ```
-PricingSaaS MCP:get_status()
+get_status()
 ```
 
-If the call fails or the tool isn't available, stop and tell the user:
+If the MCP is unavailable, stop and say:
 
-> "This skill requires the **PricingSaaS MCP** to be installed. Visit [pulse.pricingsaas.com/mcp](https://pulse.pricingsaas.com/mcp) for setup instructions, then re-run."
+> This workflow requires the PricingSaaS MCP. Please install or reconnect it, then rerun.
 
-Do not attempt a degraded workflow or fabricate data. The MCP is required.
+Do not fabricate research without MCP access.
 
-## Input
+---
 
-The skill expects one of:
+## Execution mode
 
-- **A specific company (preferred):** "How does Figma compare?", "Map Jobber's competitive landscape", "Who competes with BrowserStack?"
-- **A company + category hint:** "Figma in design tools", "Jobber in field service" — use the hint to scope the rings
-- **A category only (fallback):** "design tools pricing landscape", "field service management software" — auto-pick the most-tracked company in the category as the seed; note the choice in the executive summary
+Check the `category` input first to determine the execution mode:
 
-Always converge on the same structured output: three competitive rings positioned around the seed (or category median).
+### Watchlist mode (when `category` starts with `[WATCHLIST MODE]`)
 
-## Workflow
+The user selected specific watchlists to scope the landscape. The company set is pre-defined — **do not run `search_companies` or `search_companies_advanced`**.
 
-### Step 1: Anchor on the seed company
+1. **Extract slugs** from the `category` field — everything after "Slugs to fetch (call get_company_details for each):" and before the next period.
+2. **Remove the seed company slug** from the list (it is the anchor, not a ring member).
+3. **Fetch all remaining companies in parallel** via `get_company_details(slug)` — batches of 6.
+4. **Distribute into 3 rings** based on similarity to the seed anchor profile:
+   - **Ring 1 (Direct):** Same primary use case and target customer segment; closest price band overlap.
+   - **Ring 2 (Adjacent):** Overlapping workflows from a different angle, different primary use case or customer segment.
+   - **Ring 3 (Broader category):** Same general space but different model, price tier, or a clear outlier (freemium anchor, enterprise-only, etc.).
+   Use price, pricing model, employee count, and positioning language from the fetched details to assign rings. Every watchlist company must appear in exactly one ring.
+5. **Skip Steps 2 and 3** — but run the **Discovery Pass** (Step 5a) and **Web Price Augmentation** (Step 5b) below before jumping to Step 4.
 
-If a seed company is given:
+#### Step 5a — PricingSaaS discovery pass (watchlist supplement)
+
+After distributing watchlist companies into rings, search for additional relevant companies that belong in the landscape but aren't in the watchlist:
+
+```
+search_companies(query="<seed primary product keywords>")
+search_companies_advanced(has_license=True, price_min=<ring median * 0.3>, price_max=<ring median * 3>)
+```
+
+For each result not already in the rings:
+- Fetch details: `get_company_details(slug)`
+- If genuinely relevant (same category or adjacent workflow), assign to the appropriate ring
+- Mark every discovered company with `[DISCOVERED]` internally; render with a `PS Discovery` label and dashed-border card in the report's data sources grid
+
+Limit discovery additions to **4–6 companies** across all rings combined. Skip anything clearly out-of-scope.
+
+#### Step 5b — Web price augmentation (contact-only companies)
+
+For any company in the rings whose pricing is contact-only (no published price found in PricingSaaS):
+1. Run `WebSearch("{{company_name}} pricing cost per month site:reddit.com OR site:g2.com OR costbench.com OR capterra.com")`
+2. If a credible estimate is found (review site, analyst benchmark, or cost-comparison resource), add it flagged with `🌐 est.` in the price column
+3. Add a footnote in the report: "🌐 est. — pricing not published; estimate sourced from third-party review sites as of {{REPORT_DATE}}. Verify directly with the vendor before use."
+
+Limit: flag at most **3 companies** with web estimates per report. Skip if no credible source is found — do not fabricate estimates.
+
+Proceed to **Step 4** with the full combined company set (watchlist + discovered).
+
+---
+
+### Discovery mode (when `category` is a plain text hint or empty)
+
+Standard workflow — proceed through all steps below.
+
+---
+
+## Required workflow
+
+### Step 1 — Anchor on the seed company
+
+If a seed company is given, fetch it first:
 
 ```
 get_company_details(slug)
 ```
 
-Extract from the seed and pin as the **anchor**:
+Pin the **anchor profile** from the response:
+
 - `logo_url`, primary domain, full company name
 - Plan names, monthly + annual prices, headline metric (per seat / per user / flat / usage)
 - Has freemium / has trial
-- Pricing-page primary segment language ("teams of all sizes", "for enterprises", "for solo creators")
-- Employee count band (proxy for company size / target customer)
+- Pricing-page primary segment language
+- Employee count band
 
-This becomes the **anchor profile** — every ring is filtered and grouped relative to it.
+Every ring is filtered and grouped relative to this anchor.
 
-If category-only fallback was confirmed, skip this step but compute a synthetic anchor profile from the category-median plan / price after Step 2.
+In category-fallback mode, skip this step and compute a synthetic anchor from the category-median plan / price after Step 2.
 
-#### Step 1b: Seed not in the PricingSaaS database
+#### Step 1b — Seed not in the PricingSaaS database
 
 If `search_companies(seed_name)` returns no match (or `get_company_details` 404s), the seed isn't tracked yet. Do **both** of these before continuing:
 
-1. **Submit the seed for ingestion** — call `add_page(url="<seed-pricing-page-url>")` so the seed gets tracked going forward. Mention this in the final delivery message ("I've also submitted {{SEED_NAME}}'s pricing page so it'll be tracked from now on.").
-2. **Build the anchor profile from the live pricing page** — use `WebFetch` against the seed's pricing URL and extract the same fields you'd pull from `get_company_details` (plan names, monthly + annual prices, headline metric, trial/freemium, pricing-page positioning language). Note the anchor as "external — not yet in PricingSaaS DB" internally; do not advertise this fact in the report.
+1. **Submit the seed for ingestion** — call `add_page(url="<seed-pricing-page-url>")` so the seed is tracked from now on. Mention it in the final delivery line ("I've also submitted {{SEED_NAME}}'s pricing page so it'll be tracked going forward.").
+2. **Build the anchor profile from the live pricing page** — use `WebFetch` against the seed's pricing URL and extract the same fields (plan names, monthly + annual prices, headline metric, trial/freemium, positioning language). Mark the anchor as "external — not yet in PricingSaaS DB" internally; do not advertise this in the report itself.
 
-The same protocol applies to ring members: if a well-known competitor isn't in the DB, submit their pricing page via `add_page` (silent — never surface a "Coverage Gaps" section). If a ring member is critical to the rings (e.g. a flagship direct competitor), pull their entry-level price from `WebFetch` so the ring is still complete in this report; otherwise just submit and skip.
+Apply the same protocol to ring members: if a well-known competitor isn't in the DB, submit their pricing page via `add_page` (silent — never surface a "Coverage Gaps" section). For critical-to-the-ring competitors, supplement with `WebFetch` so the ring stays complete in this report; otherwise just submit and skip.
 
-### Step 2: Build the three competitive rings
+---
 
-Goal: 12–20 companies total, distributed across three rings. Run discovery in parallel.
+### Step 2 — Build the three competitive rings
+
+Goal: 12–20 companies total, distributed deliberately across three rings. Run discovery in parallel.
 
 **Ring 1 — Direct competitors (4–6 companies):** head-on alternatives with the same primary use case and same target customer. Use seed's product description keywords, matched-pricing-model attributes, and overlapping price band.
 
@@ -105,7 +149,7 @@ search_companies_advanced(
 )
 ```
 
-**Ring 2 — Less-direct / adjacent (4–6 companies):** overlapping workflows from a different angle (e.g., for Figma: design-to-handoff tools, prototyping-only tools, dev-mode-adjacent platforms). Loosen attribute filters, shift keywords toward adjacent verbs / outputs.
+**Ring 2 — Less-direct / adjacent (4–6 companies):** overlapping workflows from a different angle. Loosen attribute filters, shift keywords toward adjacent verbs / outputs.
 
 ```
 search_companies(query="<adjacent verb / output keyword>")
@@ -116,18 +160,20 @@ search_companies_advanced(
 )
 ```
 
-**Ring 3 — Broader category (4–6 outliers):** wider market context — the company giving the use case away free, the one locking it to enterprise-only, the one with a fundamentally different model (per-site vs. per-seat, usage-based in a per-seat market). These give the report range and make patterns interesting.
+**Ring 3 — Broader category (4–6 outliers):** wider market context — the company giving the use case away free, the one locking it to enterprise-only, the one with a fundamentally different model. These give the report range and make patterns interesting.
 
 ```
 search_companies(query="<broad category keyword>")
 search_companies_advanced(plan_name="<common plan name in space>")
 ```
 
-Deduplicate across all three rings — a company can only appear in one ring; pick the closest fit. Never place the seed company itself in any ring (it is the anchor, rendered separately).
+Deduplicate across all three rings — each company appears in exactly one ring; pick the closest fit. **Never place the seed company itself in any ring** (it is the anchor, rendered separately).
 
-### Step 3: Pull pricing details for every ring member
+---
 
-Call `get_company_details(slug)` in parallel for each ring member (batches of 5–6):
+### Step 3 — Pull pricing details for every ring member
+
+Fetch details for all selected companies in parallel batches of 5–6:
 
 ```
 get_company_details(slug1)
@@ -136,21 +182,25 @@ get_company_details(slug2)
 ```
 
 Per company, extract:
-- `logo_url` (use this in the report header — never Clearbit; use Brandfetch `https://cdn.brandfetch.io/domain/{domain}?c=1idOTNPrhjEdtHU2JvP` as fallback)
+
+- `logo_url` — **always use this Cloudinary URL from our database first. Only fall back to Brandfetch (`https://cdn.brandfetch.io/domain/{domain}?c=1idOTNPrhjEdtHU2JvP`) if `logo_url` is explicitly null or empty. Never Clearbit.**
+- `pricing_page_url` — use this as the "View pricing" link in the table's Data column (direct link to the company's live pricing page)
 - Plan names and prices (monthly + annual)
 - Pricing metric (per user / per seat / flat / usage-based)
 - Freemium / trial availability
 - Add-ons
 - Employee count
 
-### Step 3b: Pricing change velocity (MANDATORY)
+---
 
-This step feeds report section `06 / Pricing Change Velocity`. Do not skip.
+### Step 3b — Pricing change velocity (MANDATORY)
 
-For Ring 1 and Ring 2 companies (closest competitors), pull change history in parallel:
+This step feeds section `06 / Pricing Change Velocity`. Do not skip — the renderer requires this section's data.
+
+For Ring 1 and Ring 2 companies (closest competitors), pull their change history:
 
 ```
-get_company_history(slug)  # for each Ring 1 + Ring 2 company
+get_company_history(slug)  # for each Ring 1 + Ring 2 company, in parallel
 ```
 
 From each response, extract:
@@ -164,9 +214,11 @@ For Ring 3 companies, skip history if credits are constrained — note "history 
 
 Build a chronological event log of the top 8–12 notable events across all companies, tagged by type. Flag events where the competitor restructured their pricing model (highest signal).
 
-### Step 3c: Discounts and annual savings (MANDATORY)
+---
 
-This step feeds report section `07 / Discounts & Promos`. Do not skip.
+### Step 3c — Discounts and annual savings (MANDATORY)
+
+This step feeds section `07 / Discounts & Promos`. Do not skip — the renderer requires this section's data.
 
 From `get_company_details` responses already fetched in Step 3:
 
@@ -180,9 +232,11 @@ From `get_company_details` responses already fetched in Step 3:
 
 **Trials**: `has_trial` and `trial_days` fields (or infer from freemium/plan names).
 
-### Step 3d: Pricing metrics (MANDATORY)
+---
 
-This step feeds report section `08 / Pricing Metrics`. Do not skip.
+### Step 3d — Pricing metrics (MANDATORY)
+
+This step feeds section `08 / Pricing Metrics`. Do not skip — the renderer requires this section's data.
 
 From `get_company_details` responses already fetched in Step 3:
 
@@ -192,29 +246,48 @@ For each plan's `charges[]`, extract:
 - `usage_type`: `subscription` (recurring) or `pay_as_you_go`
 - `billing`: `monthly_recurring_billed_monthly` / `monthly_recurring_billed_yearly` / `usage` / `pricing_not_disclosed`
 
-Classify each company's headline metric: Per property / Per user / Per reservation / Flat subscription / Flat minimum / Volume bands / Contact only / Hybrid.
+Classify each company's headline metric:
+- **Per property / per unit** — `metered` + property/unit metric
+- **Per user / per seat** — `metered` + user/seat metric
+- **Per reservation / % of bookings** — `metered` + reservation metric or `usage` billing
+- **Flat subscription** — `flat` + `subscription`, no metric
+- **Flat minimum** — `flat` but pricing page language says "minimum package" or "starting from"
+- **Volume bands** — `flat` but plan names indicate listing-count brackets (e.g. "2–14 listings")
+- **Contact only** — `pricing_not_disclosed` across all plans
+- **Hybrid** — mix of models across tiers (e.g. usage on entry, flat on higher tiers)
 
 Also note any **adjacent / industry stack** companies you know are in this category (channel managers, RMS, adjacent SaaS) and their dominant billing metric — adds market context even without pulling their PricingSaaS data.
 
-### Step 3e: Fill coverage gaps (silent)
+---
 
-After pulling details, you may know notable competitors that returned zero results from `search_companies`. Run web searches in parallel (batch of 4–6) to find their public pricing page URLs, and submit each one via `add_page(url="...")`. Skip enterprise-only / contact-us-only sites.
+### Step 3e — Fill coverage gaps (silent)
 
-**Do NOT include a "Coverage Gaps" section in the HTML report — never advertise what's missing.**
+Compile a list of well-known competitors that returned no results from `search_companies`. For each, use `WebSearch` (parallel batch of 4–6) to find their official pricing page URL. If found, submit:
 
-### Step 4: Position the seed inside each ring
+```
+add_page(url="https://example.com/pricing")
+```
+
+Skip enterprise-only / contact-us-only sites.
+
+**Do NOT include a "Coverage Gaps" section in the HTML report** — never advertise what's missing.
+
+---
+
+### Step 4 — Position the seed inside each ring
 
 For each ring, compute:
 
-- **Median entry price** of the ring (excluding the seed)
-- **Seed delta** — the seed's entry price minus the ring median, expressed as `% above` / `% below` / `at parity`
-- **Model match rate** — % of ring that uses the same headline metric as the seed (per seat vs. flat vs. usage)
+- **Median entry price** (excluding the seed)
+- **Seed delta** — seed entry price minus ring median, expressed as `+N% above` / `-N% below` / `at parity`
+- **Model match rate** — % of ring using the same headline metric as the seed
 - **Freemium incidence** — % of ring with a free tier
-- **Where the seed ranks** — position N of M when ring members are sorted by entry price
+- **Seed rank** — position N of M when ring members are sorted by entry price
 
-If category fallback is in use, replace "seed" with "category median" in all of the above.
+In category-fallback mode, replace "seed" with "category median."
 
 Identify 3–5 **positioning observations** that surface across the rings:
+
 - Is the seed cheaper / pricier than direct? Closer to or farther from adjacent?
 - Does the seed match the dominant model in Ring 1, or break from it?
 - Does the seed surface freemium where the direct ring doesn't (or vice versa)?
@@ -222,23 +295,27 @@ Identify 3–5 **positioning observations** that surface across the rings:
 
 These observations drive the executive summary and pattern callouts.
 
-### Step 5: Publish the report (single MCP call)
+---
 
-**The skill no longer generates HTML.** Instead, hand off a structured JSON spec and the server fills the template deterministically. This avoids the ~10-minute single-shot rendering pass that v9/v10 hit.
+## Final output
 
-#### 5a. Assemble the spec
+**STOP — do NOT call `publish_market_scan_report` or any other MCP tool as your final step. That tool no longer exists.**
 
-Use the data you already pulled in Steps 1–4 to build a JSON object with this shape:
+Output the completed JSON spec as your **final message**, inside a ```json code fence. The poll worker extracts it, renders HTML server-side, and delivers the URL.
+
+**Forbidden:** `read`, `write`, `edit`, `upload_report`, `publish_market_scan_report` for this skill. You don't touch HTML or call any publish tool.
+
+### Spec schema
 
 ```jsonc
 {
   "seed": {
     "name": "Intercom",
-    "logo_url": "<cloudinary or brandfetch URL>",
+    "logo_url": "<cloudinary URL preferred; Brandfetch fallback>",
     "entry_price": "$29/seat"
   },
   "meta": {
-    "report_subtitle": "<optional override; default is fine>",
+    "report_subtitle": "<optional>",
     "companies_analyzed": 13,
     "pricing_models_count": 5,
     "freemium_pct": 23,
@@ -247,76 +324,68 @@ Use the data you already pulled in Steps 1–4 to build a JSON object with this 
   },
   "exec": {
     "headline": "Intercom prices at $29/seat — 35% above the direct ring's median.",
-    "body_html": "Two-three sentence narrative. <b>Inline bold</b> is allowed."
+    "body_html": "2–3 sentences. <b>Inline bold</b> is allowed; other tags are stripped."
   },
   "rings": {
     "direct":   { "lede": "...", "companies": [ /* CompanyRow[] */ ] },
     "adjacent": { "lede": "...", "companies": [ /* CompanyRow[] */ ] },
     "category": { "lede": "...", "companies": [ /* CompanyRow[] */ ] }
   },
-  "patterns": [ "Intercom is...", "Intercom matches...", ... ],
+  "patterns": ["Intercom is...", "Intercom matches...", ...],
   "price_comparison": {
-    "rows": [ /* ChartRow[] — comparable-unit companies only */ ],
+    "rows": [ /* ChartRow[] — comparable-unit only */ ],
     "footnote": "Not on chart: Twilio (usage), Crisp (enterprise min)."
   },
   "velocity": {
     "lede": "...",
     "activity_rows": [ /* VelocityActivityRow[] */ ],
-    "event_log":     [ /* VelocityEvent[] — top 8-12 */ ],
+    "event_log":     [ /* VelocityEvent[] — top 8-12 across cohort */ ],
     "callout": "1-paragraph insight."
   },
   "discounts": {
     "lede": "...",
     "savings_rows": [ /* DiscountRow[] */ ],
-    "no_annual_companies": [ "Company A", "Company B" ],
+    "no_annual_companies": ["Company A", "Company B"],
     "promos": [ /* Promo[] */ ],
     "callout": "1-paragraph insight."
   },
   "metrics": {
     "lede": "The dominant billing unit in this market is per-seat.",
-    "direct":   [ /* MetricRow[] for ring companies */ ],
-    "adjacent": [ /* MetricRow[] for known adjacent tools */ ],
-    "callout": "1-paragraph insight (renders on a dark navy card)."
+    "direct":   [ /* MetricRow[] */ ],
+    "adjacent": [ /* MetricRow[] — known industry-stack tools */ ],
+    "callout": "1-paragraph insight."
   },
-  "recommendations": [ "Intercom should...", ... ]
+  "recommendations": ["Intercom should...", ...]
 }
 ```
 
-**Row shapes:**
-- `CompanyRow`: `{ slug, name, logo_url, plan, monthly, annual, model, free_trial, pricing_url, is_seed? }`. In the direct ring set `is_seed: true` on the row for the anchor company so it gets the lime left-border highlight at its natural price-sorted position.
-- `ChartRow`: `{ slug, name, logo_url, price (number), price_label (formatted), is_seed? }`. Include ONLY companies billing on the same unit as the seed (per-seat / per-user / per-agent). Move usage-based / freemium-only / contact-only entries to `price_comparison.footnote`.
-- `VelocityActivityRow`: `{ slug, name, tracked_since, activity_level: "high"|"medium"|"static"|"new", event_count }`.
-- `VelocityEvent`: `{ slug, date (e.g. "May 22"), title, period (for the diff URL), type: "model"|"price"|"promo"|"product"|"social", highlight? }`.
-- `DiscountRow`: `{ slug, name, plan, monthly, annual_per_month, save_pct (number), save_tier: "high"|"mid"|"low" }` (high ≥25%, mid 15–24%, low <15%).
-- `Promo`: `{ slug, name, label, type: "trial"|"switch"|"gap" }` (gap = "Not tracked").
-- `MetricRow`: `{ slug?, name, logo_url?, metric (e.g. "Per seat"), model_type, evidence (1-line note) }`. Direct rows should include `slug` + `logo_url`; adjacent rows can omit them.
+### Row shapes
 
-**Sorting:** every ring's `companies` array and the `price_comparison.rows` array must be sorted ascending by entry price.
+- **CompanyRow** — `{ slug, name, logo_url, plan, monthly, annual, model, free_trial, pricing_url, is_seed? }`. `monthly`/`annual` are formatted strings (e.g. `"$29"`, `"Free"`, `"Contact"`). In `rings.direct.companies`, set `is_seed: true` on the seed's row at its natural price-sorted position — the renderer applies the lime left-border highlight.
+- **ChartRow** — `{ slug, name, logo_url, price (number), price_label (formatted), is_seed? }`. Include ONLY companies billing on the same unit as the seed (per-seat / per-user / per-agent). Move usage-based / freemium-only / contact-only to `price_comparison.footnote`.
+- **VelocityActivityRow** — `{ slug, name, tracked_since, activity_level: "high"|"medium"|"static"|"new", event_count }`. Levels: High (3+ notable events), Medium (1–2), Static (0), Too new (<3 weeks tracked).
+- **VelocityEvent** — `{ slug, date ("Mon DD"), title, period (for the diff URL), type: "model"|"price"|"promo"|"product"|"social", highlight? }`. Set `highlight: true` on the most signal-rich event (e.g. a model-restructure).
+- **DiscountRow** — `{ slug, name, plan, monthly, annual_per_month, save_pct (number), save_tier: "high"|"mid"|"low" }`. Tier mapping: high ≥25%, mid 15–24%, low <15%.
+- **Promo** — `{ slug, name, label, type: "trial"|"switch"|"gap" }`. `gap` means "Not tracked".
+- **MetricRow** — `{ slug?, name, logo_url?, metric (e.g. "Per seat"), model_type, evidence (1-line note) }`. Direct rows should include slug+logo; adjacent rows can omit.
 
-**Empty-data fallback:** if a step's data is genuinely empty (e.g. zero discounts across the cohort), still pass the section — set `savings_rows: []` and `callout: "No published annual discounts across the tracked set."` and the renderer will produce a clean placeholder. NEVER omit a section.
+### Sorting
 
-#### 5b. Publish — one MCP call, done
+- Every ring's `companies` array: ascending by entry price.
+- `price_comparison.rows`: ascending by price.
+- `velocity.event_log`: chronological (oldest first or newest first — your call, just consistent).
 
-```
-publish_market_scan_report(spec=<the JSON object above>)
-```
+### Empty-data fallback
 
-That's it. The MCP server:
-- Validates the spec (returns a clear error if required keys are missing).
-- Fetches `template.html` from GitHub raw.
-- Substitutes every `{{TOKEN}}` deterministically (no model time).
-- Uploads to `share.pricingsaas.com` via the same Lambda as `upload_report`.
-- Returns the public URL in `structuredContent.public_url`.
+If a step's data is genuinely empty (no discounts published, no history available, etc.), still pass the section — leave the array empty and use the `callout` field to explain. The renderer produces clean placeholders so no section is ever missing.
 
-**Do NOT** use `read`/`write`/`edit`/`upload_report` for this skill — they are obsolete on this path. The renderer handles all HTML, CSS, brand tokens, favicon, robots tag, and seed-row styling. Your only deliverable is the spec.
+### Final response format
 
-### Step 6: Deliver
+Output the JSON spec as your final message. The poll delivers the report. No prose needed — just the JSON fence.
 
-Format the final reply for the user:
-
-> **Competitive Landscape: {SEED_NAME}** — {N} companies across 3 rings
+> **Competitive Landscape: \<Seed Name\>** — N companies across 3 rings
 >
-> [View report]({public_url})
+> [View report](https://share.pricingsaas.com/...)
 >
 > _2-line preview: where the seed sits in the direct ring + the most useful positioning observation._
 
@@ -325,15 +394,3 @@ ALWAYS suggest 3 tailored next steps:
 1. **Pricing history for the seed** — `get_company_history(slug)` + `get_diff_highlight`
 2. **Track the direct ring** — `add_to_watchlist(slugs=[direct ring slugs])` + `get_pricing_news()`
 3. **Pricing strategy for the seed** — run `pulse-deep-dive` for plan-by-plan recommendations or `pulse-pricing-benchmark` for a WTP anchor
-
-## Credit cost
-
-`publish_market_scan_report` is 5 credits (same as the legacy `upload_report` path). All discovery / detail / history tools are free.
-
-## Skill boundaries
-
-- **Does:** Position a specific company against three competitive rings; surface ring deltas, model match, freemium incidence; generate a branded landscape report
-- **Does not:** Recommend a specific price (use `pulse-pricing-benchmark`)
-- **Does not:** Track changes over time (use `pulse-competitor-watch`)
-- **Does not:** Plan-by-plan deep-dive on the seed (use `pulse-deep-dive`)
-- **Does not:** Single-feature packaging research (use `pulse-feature-research`)

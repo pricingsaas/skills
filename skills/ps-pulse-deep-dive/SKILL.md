@@ -1,42 +1,46 @@
+# PricingSaaS Pulse — Pricing / Packaging Brief
+
+You are running a PricingSaaS Pricing / Packaging Brief. This skill handles two types of questions — pricing (how much to charge, price increase analysis) and packaging (how to package a feature: bundle vs. add-on vs. tier-gate vs. new tier). Detect the mode first, then follow the matching workflow.
+
+## Non-negotiable execution rule
+
+You must follow these instructions end to end. Do not stop after a preview, summary, partial findings, or chat-only answer. The required final deliverable is a hosted HTML report. The final step is to output the completed JSON spec as your final message — the poll worker renders it server-side and delivers the URL.
+
+**You do NOT generate HTML for this skill.** Build a structured JSON spec instead — the renderer guarantees the brand layout, CSS, section headings, and the tile-format Data Sources grid. The spec schema lives in the "Final output" section below.
+
+If any required step cannot be completed, do not silently substitute a weaker approach. State exactly which step failed, why it failed, and what evidence or output was still produced.
+
 ---
-name: ps-pulse-deep-dive
-description: |
-  Get a competitive pricing or packaging recommendation for your SaaS product. Benchmarks your pricing against 15-20 peers, surfaces price increase trends and AI bundling patterns, and delivers a data-backed recommendation report with NRR impact modeling. Also handles packaging decisions (bundle vs. add-on vs. new tier). Requires the PricingSaaS MCP (pulse.pricingsaas.com/mcp).
----
 
-# Pulse Pricing / Packaging Brief — Competitive Analysis & Packaging Decisions
+## Step 0 — Mode detection
 
-Answer pricing AND packaging questions for SaaS companies using PricingSaaS MCP data. Produce a professional report — either a price change recommendation backed by competitor benchmarks, or a packaging decision brief (bundle vs. add-on vs. new tier) backed by how peers handle the same feature.
+Before any research, classify the request:
 
-## Mode Detection — Pricing vs. Packaging
+| Mode | Signals |
+|---|---|
+| **Pricing** | "price increase", "what should we charge", "pricing benchmark", "raise prices", "competitive pricing" |
+| **Packaging** | "rolling out X", "how should we package", "bundle or add-on", "which tier", "should this be an add-on", "new feature pricing", "how do we monetize X" |
+| **Both** | Question involves a new feature AND price changes simultaneously |
 
-Before research, identify which mode applies:
-
-**Pricing mode** (default) — user asks how much to charge, whether to raise prices, or wants competitive benchmarks:
-- "should we raise prices", "price increase", "competitive pricing", "what should we charge", "pricing benchmark"
-
-**Packaging mode** — user asks how to package a feature, whether it should be an add-on, which tier it belongs in, or how to roll out a new capability:
-- "rolling out X", "how should we package", "bundle or add-on", "which tier", "should this be an add-on", "new feature pricing", "how do we monetize X"
-
-**Both** — some questions are hybrid (e.g., "rolling out a new AI tier AND raising prices"). Run both workflows and produce a unified report.
-
-## Phase 0: Confirm PricingSaaS MCP is installed
-
-Before any research, verify the MCP is reachable:
+Then call:
 
 ```
-PricingSaaS MCP:get_status()
+get_status()
 ```
 
-If the call fails or the tool isn't available, stop and tell the user:
+If the MCP is unavailable, stop and say:
 
-> "This skill requires the **PricingSaaS MCP** to be installed. Visit [pulse.pricingsaas.com/mcp](https://pulse.pricingsaas.com/mcp) for setup instructions, then re-run."
+> This workflow requires the PricingSaaS MCP. Please install or reconnect it, then rerun.
 
-Do not attempt a degraded workflow or fabricate data. The MCP is required.
+Do not fabricate research without MCP access.
+
+---
 
 ## Hard rule — no mid-run input requests
 
-**Once this skill is running, never ask the user a question.** Pre-flight validation (via `pulse-skill-verify`) has already resolved inputs. Use the best available assumption for anything not explicitly stated, note assumptions in the report's Data Limitations section, and complete the report. If it is genuinely impossible to produce any useful output (company cannot be found after exhaustive search), end with `cannot_proceed` and a one-sentence reason — not a question.
+**Once this skill is running, never ask the user a question.** Pre-flight validation has already resolved inputs. Use the defaults below for anything unspecified, note assumptions in the Data Limitations section, and complete the report. If genuinely impossible to proceed (company not found anywhere), end with `cannot_proceed` and one sentence — not a question.
+
+This rule applies to every step. If you cannot build a valid JSON spec, end with `cannot_proceed` and one sentence explaining why.
 
 ## Hard rule — slug normalization
 
@@ -52,23 +56,31 @@ The slug is always the bare name with no dots, no TLD, no trailing punctuation. 
 **Defaults when context is unspecified:**
 - **Which plan?** Analyze all plans and present each tier in the comparison tables.
 - **Mode?** Default to "Both" — run pricing and packaging analysis together.
-- **Segments?** Analyze all three (SMB, mid-market, enterprise) and note the distinctions.
-- **Comparison scope?** Use same category first, broaden to adjacent SaaS if fewer than 10 peers found.
+- **Segments?** Analyze SMB, mid-market, and enterprise; note distinctions in the report.
+- **Comparison scope?** Same category first; broaden to adjacent SaaS if fewer than 10 peers found.
 
-## Workflow
+## Required user inputs
 
-### Phase 2: Research
+**Pricing mode** — target company (required). Plan, goal, segments, and comparison scope default per the rules above if not specified.
 
-#### Step 1: Target company data
+**Packaging mode** — target company + feature description (required). Segment, plan structure, timeline, and monetization goal default per the rules above.
+
+---
+
+## PRICING WORKFLOW
+
+### P-1 — Target company data
 
 ```
-get_company_details(slug)      # Current plans, prices, metrics
-get_company_history(slug)      # Historical pricing changes
+get_company_details(slug)
+get_company_history(slug)
 ```
 
 Extract: current price (monthly + annual), pricing metric, freemium/add-ons/usage presence, last price change date and magnitude, value additions since last change.
 
-#### Step 2: Find comparable companies
+---
+
+### P-2 — Find comparable companies
 
 Run in parallel:
 
@@ -84,39 +96,42 @@ search_companies_advanced(
 )
 ```
 
-Select **15-20 companies minimum** across three tiers. Don't stop at 7-8 — a shallow comp set produces artificially wide recommendation ranges. Keep adding until you have dense coverage in each tier:
-- **Tier 1 (4-6):** Direct competitors in same product category — these set the most defensible price anchors
-- **Tier 2 (5-7):** Adjacent platforms with overlapping use cases or buyer persona
-- **Tier 3 (5-7):** Broader SaaS with matching pricing model and motion (e.g. PLG→B2B, content library, per-seat tools) even if different category
+Select **15-20 companies across three tiers**:
 
-For each tier write a one-line "Takeaway" below the table: what the tier reveals about headroom, ratio gaps, or market norms.
+- **Tier 1 (4-6):** Direct competitors in same product category
+- **Tier 2 (5-7):** Adjacent platforms with overlapping use cases
+- **Tier 3 (5-7):** Broader SaaS with matching pricing model
 
-#### Step 3: Gather competitor pricing
+---
 
-Call `get_company_details(slug)` and `get_company_history(slug)` in parallel for each company (batches of 4-5):
+### P-3 — Gather competitor pricing
+
+Fetch details and history in parallel batches of 4–5:
 
 ```
-get_company_details(slug1)
-get_company_history(slug1)
-...
+get_company_details(slug)
+get_company_history(slug, discovery_only=True)  # period scout
+get_company_history(slug)                       # full diff (1 credit/diff)
 ```
 
 Capture per company: equivalent plan name, price (monthly + annual), pricing metric, most recent increase (amount, %, date, justification).
 
-**Price increase timeline (mandatory):** Extract every documented increase from the history for all companies. Target 10+ entries in the timeline table sorted by magnitude. Don't stop at 3-4 highlights — comprehensive coverage of increases across the comp set shows the market pattern more convincingly than cherry-picked examples. Include: company, plan name, from price, to price, % change, and quarter/date.
+**Price increase timeline (mandatory):** Target 10+ documented increases, sorted by magnitude. Include: company, plan, from price, to price, % change, quarter/date.
 
-#### Step 4: Enrich with pricing knowledge
+---
 
-Query the knowledge base for frameworks relevant to this analysis:
+### P-4 — Enrich with pricing knowledge
 
 ```
 search_pricing_knowledge(query="<relevant pricing strategy topic>")
 search_pricing_knowledge(query="<pricing model> packaging best practices")
 ```
 
-Examples: "per-seat pricing best practices", "freemium conversion optimization", "price increase communication strategies". These findings anchor recommendations in established methodology and form the "Pricing Expertise" section of the report.
+These findings anchor recommendations and form the Pricing Expertise section.
 
-#### Step 5: Analyze patterns
+---
+
+### P-5 — Analyze patterns
 
 Compute:
 - Median peer price for equivalent plans (annual billing)
@@ -125,51 +140,37 @@ Compute:
 - Target's percentile in peer price distribution
 - Gap to next pricing tier
 - Common justification patterns (AI bundling, feature expansion, tier restructuring)
-- **Pro-to-Team / Individual-to-Business price ratio** for the target and all peers — this is one of the strongest structural signals of under- or over-pricing
+- **Pro-to-Team / Individual-to-Business price ratio** — below 1.5× is a red flag
 
-**NRR Impact Model (when the user provides ARR/NRR data):**
-If the customer shares ARR split, NRR by segment, or target NRR — build a quantitative model:
-1. Calculate current blended NRR from segment percentages
-2. Show the math: `Blended NRR = (B2C% × B2C_NRR) + (B2B% × B2B_NRR)`
-3. Model Year 1 impact of the price increase applied to existing customers
-4. Project Year 1–3 path to target NRR from organic B2B mix shift + price increase
-5. Present as a table: Timeline / B2B ARR / B2B% / B2B NRR / Blended NRR / Notes
+**NRR Impact Model (when ARR/NRR data is provided):**
+Build a quantitative projection: Blended NRR = (B2C% × B2C_NRR) + (B2B% × B2B_NRR). Project Year 1–3 path to target NRR. Present as a table.
 
-This section converts the recommendation from qualitative ("you're underpriced") to quantitative ("here's the NRR point impact and the path to your target").
+---
 
-**Identify secondary finding categories** relevant to this specific company's context:
-- If they're adding AI features → add an "AI Pricing Models" section benchmarking how peers handle AI monetization (bundled vs. add-on vs. separate tier)
-- If they're considering vertical/industry-specific pricing → add an "Industry Library / Vertical Pricing" section
-- If they have usage-based ambitions → add a "Usage-Based Pricing Models" section
-- If enterprise compliance is a major factor → add a "De-risking Enterprise Playbook" section
+### P-6 — Formulate recommendation
 
-These secondary findings make the report distinctly actionable beyond just the price number.
-
-#### Step 6: Formulate recommendation
-
-Three scenarios — anchored to specific peer data points, not just percentages:
+Three scenarios anchored to specific peer data points:
 
 | Scenario | Approach | Typical Range |
-|----------|----------|---------------|
+|---|---|---|
 | Conservative | Match median peer increase %; stay below median peer price | +15-25% |
-| Recommended | Align price to just below the median peer cluster; match most comparable peer | +25-35% |
-| Aggressive | Align price to median peer; close most of the structural gap | +33-50% |
+| Recommended | Align price just below median peer cluster; match most comparable peer | +25-35% |
+| Aggressive | Align to median peer; close most of the structural gap | +33-50% |
 
-**Important calibration rules:**
-- The "Recommended" scenario should land the customer **just below or at** the median peer price for their tier — not significantly above it. A recommendation that's still below most peers is far easier to defend than one that overtakes them.
-- For each scenario, name a **specific peer company** it aligns with (e.g. "matches Loom Business at $18/mo") — not just a percentage. This makes it concrete.
-- If the Pro-to-Team ratio is below 1.5×, the structural gap is severe enough that even Conservative is well-supported. Note this explicitly.
-- For each: new price, percentage change, peer alignment, Team/Pro ratio result, and risk level.
+**Rules:**
+- Recommended scenario lands just below or at median peer price — not above it
+- Name a specific peer for each scenario (e.g. "matches Loom Business at $18/mo")
+- If Pro-to-Team ratio < 1.5×, even Conservative is well-supported — say so
 
-**Per-scenario format:**
+**Per-scenario table:**
 | Scenario | Annual | Monthly | Increase | Multiplier | Positioning | Risk |
 |---|---:|---:|---:|---:|---|---|
 
 ---
 
-## Packaging Workflow (run when mode = packaging or hybrid)
+## PACKAGING WORKFLOW
 
-### PK-1: Target company baseline
+### PK-1 — Target company baseline
 
 ```
 get_company_details(slug)
@@ -178,7 +179,9 @@ get_company_history(slug)
 
 Extract: current plan structure, pricing metric, any AI or usage-based add-ons already present, how existing features are gated across tiers.
 
-### PK-2: Feature landscape — who has this feature and how do they package it?
+---
+
+### PK-2 — Feature landscape scan
 
 Run in parallel:
 
@@ -187,223 +190,192 @@ search_companies(query="<feature keyword> <category>")
 search_companies(query="<feature name> AI <product category>")
 ```
 
-For the top 12-18 matches, call `get_company_details(slug)` and extract:
-- Is this feature in base plans, gated to a higher tier, or sold as an add-on?
-- What tier does it first appear in?
-- Is it usage-metered, included in a flat plan, or priced separately?
-- What is the price delta between tiers where the feature is/isn't present?
+For the top 12-18 matches, call `get_company_details(slug)` in parallel batches and extract how each company packages the feature:
 
-Classify each company's approach:
 | Approach | Definition |
 |---|---|
 | **Bundled-all** | All tiers include the feature |
-| **Tier-gated** | Feature unlocks at a specific tier (most common) |
+| **Tier-gated** | Feature unlocks at a specific tier |
 | **Add-on** | Separate line item on top of base plan |
-| **New tier** | Company created a distinct plan anchored on this feature |
-| **Usage-add-on** | Feature included but metered beyond a base quota |
+| **New tier** | Distinct plan anchored on this feature |
+| **Usage-add-on** | Included but metered beyond a base quota |
 
-### PK-3: Enrich with packaging knowledge
+Also extract: tier it first appears in, price premium vs. next-lower tier, usage metric if applicable.
+
+---
+
+### PK-3 — Packaging knowledge enrichment
 
 ```
-search_pricing_knowledge(query="feature packaging add-on vs bundle")
-search_pricing_knowledge(query="<feature type> pricing SaaS")
-search_pricing_knowledge(query="AI feature monetization tier design")
+search_pricing_knowledge(query="feature packaging add-on vs bundle tier gate")
+search_pricing_knowledge(query="<feature type> pricing SaaS packaging")
+search_pricing_knowledge(query="AI feature monetization rollout strategy")
 ```
 
 Pull frameworks on: when to tier-gate vs. add-on, WTP validation for new features, rollout sequencing, value communication.
 
-### PK-4: Packaging decision analysis
+---
+
+### PK-4 — Packaging decision analysis
 
 Compute:
-- Distribution of packaging approaches (% bundled vs. gated vs. add-on vs. new tier)
+- Distribution of packaging approaches (% bundled / gated / add-on / new tier / usage)
 - Median price premium for tiers where the feature first appears
-- Any usage-metering patterns (per reply, per session, per seat, per property)
-- Rollout patterns: do peers launch as beta-free → paid? Hard launch? Grandfathered?
+- Usage-metering patterns (per message, per session, per property, per seat)
+- Rollout patterns (beta-free → paid, hard launch, grandfathered)
 
-**Decision framework — use these signals to drive recommendation:**
+**Decision signals:**
 
 | Signal | Points toward |
 |---|---|
 | Feature is table-stakes in category | Bundled-all or Tier-gated |
 | Feature is differentiating / premium | Add-on or New tier |
-| Feature has variable cost (AI inference) | Usage-add-on |
+| Feature has variable AI inference cost | Usage-add-on |
 | Feature has strong upsell potential | Tier-gated (drives upgrade) |
 | Feature is acquisition vehicle | Freemium / lower-tier |
-| Customer segment = enterprise | Add-on (budget flexibility) |
-| Customer segment = SMB | Tier-gated (simpler buying) |
-| Feature is new, uncertain WTP | Beta-free → paid after validation |
-
-### PK-5: Packaging recommendation
-
-Three options — always present all three, then select one as Recommended:
-
-| Option | Structure | Pricing | Best when |
-|---|---|---|---|
-| **Tier-gate** | Feature unlocks at [Plan X] | $Y/mo premium vs. lower tier | Strong upsell signal; SMB buyers |
-| **Add-on** | Optional line item | $Z/mo per [metric] | Enterprise buyers; variable usage |
-| **New tier** | Dedicated [AI/Feature Name] plan | $W/mo | Feature is foundational identity shift |
-
-For the Recommended option:
-- Name a specific peer who uses this approach (e.g. "Matches how Guesty handles AI messaging — gated to Business, $X premium")
-- State the expected upsell motion (how does this drive upgrades?)
-- State the rollout sequence (beta → GA → existing customer communication)
-- Name the pricing metric if it's usage-based
+| Enterprise buyers | Add-on (budget flexibility) |
+| SMB buyers | Tier-gated (simpler buying) |
+| New feature, uncertain WTP | Beta-free → paid after validation |
 
 ---
 
-### Phase 3: Publish — single MCP call from a JSON spec
+### PK-5 — Packaging recommendation
 
-The skill no longer generates HTML. The publish step is one tool call:
+Present three options, then select Recommended:
 
-```
-publish_pricing_brief_report(spec=<the JSON object below>)
-```
+| Option | Structure | Pricing | Best when |
+|---|---|---|---|
+| **Tier-gate** | Feature unlocks at [Plan X] | $Y/mo premium vs. lower tier | Strong upsell; SMB buyers |
+| **Add-on** | Optional line item | $Z/mo per [metric] | Enterprise; variable usage |
+| **New tier** | Dedicated [Feature Name] plan | $W/mo | Feature is foundational identity shift |
 
-The MCP server fetches `template.html` (Q1-2026 trends-report design family — fonts, navy/lime/cream tokens, ring motif on cover, card-on-gray wrapper at max-width 1080px, lime-under highlight, cream key-finding card, dark navy final-recommendation panel, tile-format Data Sources grid — all baked in) and substitutes every token deterministically. No model time in the render step. Returns `structuredContent.public_url`.
+For the Recommended option — provide all five:
+1. Packaging structure (which option and why)
+2. Price / metric (specific number anchored to a named peer)
+3. Rollout sequence (beta → GA → existing customer communication)
+4. Upsell motion (what triggers an upgrade, what does the locked state look like)
+5. Success metrics (how do you know it's working in 90 days)
 
-**Forbidden:** `read`, `write`, `edit`, `upload_report` for this skill. You don't touch HTML.
+---
 
-#### Spec schema
+## Final output
 
-```jsonc
+**STOP — do NOT call `publish_pricing_brief_report` or any other MCP tool as your final step. That tool no longer exists.**
+
+Output the completed JSON spec as your **final message**, inside a ```json code fence. The poll worker extracts it, renders HTML server-side, and delivers the URL — no action needed from you.
+
+**Forbidden:** `read`, `write`, `edit`, `upload_report`, `publish_pricing_brief_report` for this skill. You don't touch HTML or call any publish tool.
+
+The full spec schema lives in SKILL.md "Phase 3: Publish". Required keys: `mode`, `seed`, `exec`, `stats`, `landscape`, `options`, `companies`. Optional sections (the renderer auto-omits when absent): `current_state`, `patterns`, `decision_matrix` / `nrr_model` / `price_increase_timeline`, `expertise`, `rollout`, `context_quotes`, `secondary_findings`, `final_recommendation`.
+
+**Mode → required-section mapping:**
+- `pricing`: `landscape.pricing_tiers` (3 tier tables), usually `price_increase_timeline`, optionally `nrr_model`
+- `packaging`: `landscape.feature_rows` (single table), usually `patterns`, `decision_matrix`, `rollout`
+- `both`: include sections from both modes; the renderer order matches their column in SKILL.md
+
+**Sorting:**
+- `pricing_tiers[].companies` ascending by entry price; seed row uses `is_seed: true` at its natural sorted position.
+- `feature_rows`: group by `approach` then by `tier_or_plan` (or by company name — your call, just consistent).
+- `price_increase_timeline.rows`: descending by `pct_change`.
+
+**Empty-data fallback:** Pass empty arrays / omit optional sections rather than fabricating. The renderer's `current_state`, `patterns`, etc. are no-ops when empty, so the section won't appear in the report.
+
+---
+
+## Row shapes — exact field names (renderer is strict)
+
+These are the TypeScript interfaces the renderer uses. Field names must match exactly — wrong names render as blank cells.
+
+### PricingTierRow (pricing mode — `landscape.pricing_tiers[].companies`)
+
+```typescript
 {
-  "mode": "pricing" | "packaging" | "both",
-  "seed": { "name": "Notion", "slug": "notion", "logo_url": "<cloudinary URL preferred>" },
-  "meta": {
-    "report_title_h1": "<optional override; default is auto>",
-    "report_subtitle": "<optional override>",
-    "eyebrow": "<optional override; default 'PRICING BRIEF' or 'PACKAGING BRIEF'>"
-  },
-  "exec": {
-    "question": "<optional — packaging mode shows this prominently>",
-    "headline": "Recommendation in one sentence.",
-    "body_html": "2–3 sentence rationale. <b>Inline bold</b> allowed.",
-    "bullets": ["Aligns with X", "Reduces friction Y", ...]   // optional
-  },
-  "stats": [
-    { "k": "Companies analyzed", "v": "15", "accent": true },
-    { "k": "Recommended price", "v": "$0.99/credit" },
-    { "k": "Risk level", "v": "Low" },
-    { "k": "Launch timeline", "v": "Aug 11" }
-  ],
-
-  // ── PRICING MODE — pricing_tiers + price_increase_timeline ──
-  "landscape": {
-    "lede": "...",
-    "pricing_tiers": [
-      {
-        "label": "Tier 1 — Direct",
-        "framing": "Same product category and primary buyer.",
-        "companies": [ /* PricingTierRow[] */ ],
-        "takeaway": "1-line takeaway about ring deltas / median / outliers."
-      },
-      { "label": "Tier 2 — Adjacent", ... },
-      { "label": "Tier 3 — Model-match", ... }
-    ]
-  },
-  "price_increase_timeline": {
-    "lede": "...",
-    "rows": [ /* PriceIncreaseRow[] — target 10+ entries sorted by magnitude */ ]
-  },
-  "nrr_model": {   // optional — only when ARR/NRR data was provided
-    "lede": "...",
-    "rows": [ /* NrrRow[] */ ],
-    "callout": "..."
-  },
-
-  // ── PACKAGING MODE — feature_rows + decision_matrix + rollout ──
-  "landscape": {
-    "feature_lede": "...",
-    "feature_rows": [ /* FeatureLandscapeRow[] — 12-18 peers */ ],
-    "feature_takeaway": "..."
-  },
-  "patterns": {
-    "lede": "...",
-    "distribution": [
-      { "label": "Bundled into existing tier", "pct": 32 },
-      { "label": "Add-on with credits", "pct": 41, "lead": true },
-      { "label": "New tier", "pct": 18 },
-      { "label": "Beta-only / free", "pct": 9 }
-    ],
-    "callout": "Market signal sentence — what the distribution implies for the seed."
-  },
-  "decision_matrix": {
-    "rows": [ /* DecisionRow[] — Signal × (Tier-gate / Add-on / New-tier) */ ],
-    "verdict_label": "Add-on with usage-based metering",
-    "verdict_winner": "addon"
-  },
-  "rollout": {
-    "lede": "...",
-    "phases": [
-      { "stage": "Phase 1", "when": "Now → Aug 11", "title": "Beta", "body_html": "..." },
-      { "stage": "Phase 2", "when": "Aug 11 launch", "title": "Paid GA", "body_html": "..." },
-      { "stage": "Phase 3", "when": "Q4 2026", "title": "Existing customer migration", "body_html": "..." },
-      { "stage": "Phase 4", "when": "Q1 2027", "title": "Optimization & expansion", "body_html": "..." }
-    ]
-  },
-
-  // ── BOTH MODES ──
-  "current_state": {   // optional — seed's current plans table
-    "title": "Current plan structure",
-    "lede": "...",
-    "plans": [ /* PlanRow[] */ ]
-  },
-  "expertise": {
-    "lede": "...",
-    "frameworks": [
-      { "title": "Why usage-based works for compute features", "body_html": "...", "citation": "Tomasz Tunguz, 2024" },
-      ...
-    ]
-  },
-  "context_quotes": [   // optional — direct customer quotes from intake
-    { "quote": "Our procurement keeps asking why we don't have a usage tier", "attribution": "VP Sales, Acme" }
-  ],
-  "options": {
-    "lede": "...",
-    "cards": [
-      {
-        "number": "01", "title": "Tier-gate behind Business",
-        "rows": [
-          { "key": "Structure", "value": "..." },
-          { "key": "Pricing", "value": "..." },
-          { "key": "Upsell motion", "value": "..." }
-        ],
-        "risk": "medium"
-      },
-      { "number": "02", "title": "Add-on with credits", "rows": [...], "risk": "low", "recommended": true },
-      { "number": "03", "title": "New tier", "rows": [...], "risk": "high" }
-    ]
-  },
-  "secondary_findings": [   // optional — 1-3 inline context subsections
-    { "label": "AI MONETIZATION", "title": "Add-on phaseout pattern", "body_html": "..." }
-  ],
-  "final_recommendation": {   // optional — navy summary panel at bottom
-    "title": "Final recommendation",
-    "grid": [
-      { "k": "Packaging", "v": "Add-on with usage-based metering" },
-      { "k": "Price", "v": "$0.99 / 1k executions, pre-purchased in $10 credit packs" },
-      { "k": "Availability", "v": "All paid tiers (Plus, Business, Enterprise)" },
-      { "k": "Timeline", "v": "Beta now, paid GA Aug 11" }
-    ],
-    "points": [
-      "Aligns with variable cost — every execution incurs compute.",
-      "Removes friction vs. tier-gating — no plan upgrade required to try.",
-      ...
-    ]
-  },
-  "companies": [   // tile-format Data Sources grid (seed auto-added)
-    { "slug": "figma", "name": "Figma", "logo_url": "<URL>", "ring_tag": "DIRECT" },
-    { "slug": "airtable", "name": "Airtable", "ring_tag": "ADJACENT" },
-    ...
-  ]
+  slug: string;        // e.g. "hubspot"
+  name: string;        // e.g. "HubSpot"
+  logo_url?: string;   // Cloudinary URL from get_company_details, or Brandfetch fallback
+  plan: string;        // comparable plan name, e.g. "Starter"
+  monthly: string;     // formatted monthly price, e.g. "$20/seat" — NEVER leave empty
+  annual: string;      // formatted annual price, e.g. "$16/seat"  — NEVER leave empty
+  metric: string;      // pricing metric, e.g. "Per seat"  ← USE "metric" NOT "model"
+  last_change?: string; // optional, e.g. "Q1 2026"
+  is_seed?: boolean;   // true for the anchor company row only
 }
 ```
 
-**Empty-data fallback:** Optional sections (`current_state`, `patterns`, `decision_matrix`, `nrr_model`, `price_increase_timeline`, `expertise`, `rollout`, `context_quotes`, `secondary_findings`, `final_recommendation`) auto-omit if absent from the spec. Required: `mode`, `seed`, `exec`, `stats`, `landscape`, `options`, `companies`.
+### PriceIncreaseRow (pricing mode — `price_increase_timeline.rows`)
 
-**Final response format to the user** (after the tool returns the URL):
+```typescript
+{
+  slug: string;          // e.g. "freshworks"
+  name: string;          // e.g. "Freshworks"
+  logo_url?: string;     // optional — renderer falls back to Brandfetch
+  plan: string;          // plan that changed, e.g. "Growth"
+  from_price: string;    // e.g. "$15/seat"
+  to_price: string;      // e.g. "$19/seat"
+  pct_change: number;    // INTEGER e.g. 27  ← NOT "27%" — must be a number
+  quarter: string;       // e.g. "Q1 2026"  ← USE "quarter" NOT "period" or "date"
+  justification?: string; // 1-line reason, e.g. "AI bundling"
+}
+```
 
-> **{Pricing | Packaging} Brief: {SEED_NAME}** — {N} companies analyzed
+### FeatureLandscapeRow (packaging mode — `landscape.feature_rows`)
+
+```typescript
+{
+  slug: string;
+  name: string;
+  logo_url?: string;
+  feature: string;        // feature name
+  approach: "bundled_all" | "tier_gated" | "addon" | "new_tier" | "usage_addon";
+  approach_label: string; // human label, e.g. "Tier-gated"
+  metric: string;         // pricing metric or "n/a"
+  tier_or_plan: string;   // e.g. "Business" or "Add-on"
+}
+```
+
+### Logo fallback (apply universally before building spec)
+
+If `get_company_details` returns a non-empty `logo_url`, use it. Otherwise use:
+```
+https://cdn.brandfetch.io/{domain}?c=1idOTNPrhjEdtHU2JvP
+```
+where `{domain}` is the company's primary domain (e.g. `freshworks.com`). The renderer will also auto-apply this fallback for any row with missing `logo_url`, but explicit population avoids race conditions.
+
+---
+
+## QA gate — validate spec before outputting
+
+Run this checklist mentally before outputting the final JSON. If any check fails, fix the spec first.
+
+**Pricing mode — required checks:**
+
+| Check | Pass condition | Common failure |
+|---|---|---|
+| `pricing_tiers` has 3 tiers | All 3 keys present, each with ≥ 3 companies | Stopped at 1–2 tiers |
+| Every `PricingTierRow.monthly` non-empty | `"$20/seat"` or similar | Left as `""` or `null` |
+| Every `PricingTierRow.annual` non-empty | `"$16/seat"` or `"n/a"` | Left as `""` or `null` |
+| `metric` field (not `model`) | `"Per seat"`, `"Flat"` | Used `model` → blank column |
+| Seed row has `is_seed: true` | Exactly one row per tier (the anchor) | Missing → no lime highlight |
+| `price_increase_timeline.rows` ≥ 5 | More is better; target 10+ | Only 2–3 entries |
+| `PriceIncreaseRow.pct_change` is a number | `27` not `"27%"` | String → render as `NaN%` |
+| `PriceIncreaseRow.quarter` field | `"Q1 2026"` | Used `period` or `date` → blank column |
+| `companies` array (Data Sources grid) | ≥ 10 slugs including seed | Thin grid looks sparse |
+| All slugs are bare names | `"notion"` not `"notion."` or `"notion.so"` | Trailing dot → empty pricing rows, broken logos |
+
+**Packaging mode — required checks:**
+
+| Check | Pass condition |
+|---|---|
+| `landscape.feature_rows` ≥ 8 companies | Enough for a real distribution |
+| `approach` is one of the 5 enum values | `"tier_gated"` not `"tier-gated"` or `"Tier-gated"` |
+| `patterns.distribution` sums to ~100 | Percentages add up |
+| `decision_matrix.rows` filled | All 8+ signal rows present |
+
+## Final response format
+
+Output the JSON spec as your final message. The poll delivers the report. Your message should be just the JSON fence — no prose needed.
+
+> **{Pricing | Packaging} Brief: \<Seed Name\>** — N companies analyzed
 >
 > [View report](https://share.pricingsaas.com/...)
 >
@@ -414,12 +386,3 @@ ALWAYS suggest 3 tailored next steps:
 1. **Track competitor pricing changes** — `add_to_watchlist(slugs=[peer slugs])` + `get_pricing_news()`
 2. **Map the broader landscape** — run `pulse-market-scan` for a positioning report anchored on this same seed
 3. **Validate willingness-to-pay** — run `ask-willingness-to-pay-expert` for a buyer-side WTP anchor
-
-### Phase 4: Verify
-
-Use a subagent to re-query PricingSaaS and spot-check 3-5 key data claims in the report (prices, plan names, last change quarters, peer counts).
-
-
-### Phase 4: Verify
-
-Use a subagent to re-query PricingSaaS and spot-check 3-5 key data claims in the report.
