@@ -8,9 +8,9 @@ You are running a PricingSaaS **company-anchored competitive landscape** workflo
 
 ## Non-negotiable execution rule
 
-You must follow these instructions end to end. Do not stop after a preview, summary, partial findings, or chat-only answer. The required final deliverable is a hosted HTML report. Output the completed JSON spec as your final message — the poll worker renders and delivers it.
+You must follow these instructions end to end. Do not stop after a preview, summary, partial findings, or chat-only answer. The required final deliverable is a hosted HTML report uploaded to `share.pricingsaas.com` via `upload_report`.
 
-**You do NOT generate HTML for this skill.** Build a structured JSON spec instead — the renderer guarantees all nine sections in order, all CSS, all section headings, the comparable-units chart, and the data-availability fallbacks. The spec schema lives in `## Mandatory report template` below.
+Build a structured JSON spec (schema in `## Mandatory report template`), then fetch the hosted template, fill all tokens, write the HTML file, and call `upload_report` to deliver the URL.
 
 Steps 3b (velocity), 3c (discounts), 3d (metrics) remain MANDATORY because their data populates the spec fields the renderer needs.
 
@@ -297,13 +297,31 @@ These observations drive the executive summary and pattern callouts.
 
 ---
 
-## Final output
+## Publish step — fetch template → fill tokens → upload_report
 
-**STOP — do NOT call `publish_market_scan_report` or any other MCP tool as your final step. That tool no longer exists.**
+After assembling the spec:
 
-Output the completed JSON spec as your **final message**, inside a ```json code fence. The poll worker extracts it, renders HTML server-side, and delivers the URL.
+**Step 1 — Fetch the template:**
+```
+web_fetch("https://share.pricingsaas.com/templates/pulse-market-scan-v1.html")
+```
 
-**Forbidden:** `read`, `write`, `edit`, `upload_report`, `publish_market_scan_report` for this skill. You don't touch HTML or call any publish tool.
+**Step 2 — Fill all `{{TOKEN}}` placeholders** with data from the spec. Every token must be replaced.
+
+**Step 3 — Write the HTML file:**
+```
+write(file_path="/mnt/user-data/outputs/<seed-slug>-competitive-landscape.html", content=<filled HTML>)
+```
+
+**Step 4 — Upload:**
+```
+upload_report(
+  filename="<seed-slug>-competitive-landscape.html",
+  file_path="/mnt/user-data/outputs/<seed-slug>-competitive-landscape.html"
+)
+```
+
+Run the curl command from the response. Return the `https://share.pricingsaas.com/...` URL as the primary output.
 
 ### Spec schema
 
@@ -381,7 +399,7 @@ If a step's data is genuinely empty (no discounts published, no history availabl
 
 ### Final response format
 
-Output the JSON spec as your final message. The poll delivers the report. No prose needed — just the JSON fence.
+After upload, return the share URL as the primary output:
 
 > **Competitive Landscape: \<Seed Name\>** — N companies across 3 rings
 >

@@ -4,9 +4,9 @@ You are running a PricingSaaS Pricing / Packaging Brief. This skill handles two 
 
 ## Non-negotiable execution rule
 
-You must follow these instructions end to end. Do not stop after a preview, summary, partial findings, or chat-only answer. The required final deliverable is a hosted HTML report. The final step is to output the completed JSON spec as your final message — the poll worker renders it server-side and delivers the URL.
+You must follow these instructions end to end. Do not stop after a preview, summary, partial findings, or chat-only answer. The required final deliverable is a hosted HTML report uploaded to `share.pricingsaas.com` via `upload_report`.
 
-**You do NOT generate HTML for this skill.** Build a structured JSON spec instead — the renderer guarantees the brand layout, CSS, section headings, and the tile-format Data Sources grid. The spec schema lives in the "Final output" section below.
+Build a structured JSON spec (schema below), then fetch the hosted template, fill all tokens, write the HTML file, and call `upload_report` to deliver the URL.
 
 If any required step cannot be completed, do not silently substitute a weaker approach. State exactly which step failed, why it failed, and what evidence or output was still produced.
 
@@ -40,7 +40,7 @@ Do not fabricate research without MCP access.
 
 **Once this skill is running, never ask the user a question.** Pre-flight validation has already resolved inputs. Use the defaults below for anything unspecified, note assumptions in the Data Limitations section, and complete the report. If genuinely impossible to proceed (company not found anywhere), end with `cannot_proceed` and one sentence — not a question.
 
-This rule applies to every step. If you cannot build a valid JSON spec, end with `cannot_proceed` and one sentence explaining why.
+This rule applies to every step. If you cannot build a valid JSON spec or upload the report, end with `cannot_proceed` and one sentence explaining why.
 
 ## Hard rule — slug normalization
 
@@ -258,27 +258,38 @@ For the Recommended option — provide all five:
 
 ---
 
-## Final output
+## Publish step — fetch template → fill tokens → upload_report
 
-**STOP — do NOT call `publish_pricing_brief_report` or any other MCP tool as your final step. That tool no longer exists.**
+After assembling the spec, produce the final HTML report:
 
-Output the completed JSON spec as your **final message**, inside a ```json code fence. The poll worker extracts it, renders HTML server-side, and delivers the URL — no action needed from you.
+**Step 1 — Fetch the template:**
+```
+web_fetch("https://share.pricingsaas.com/templates/pulse-deep-dive-v1.html")
+```
 
-**Forbidden:** `read`, `write`, `edit`, `upload_report`, `publish_pricing_brief_report` for this skill. You don't touch HTML or call any publish tool.
+**Step 2 — Fill all `{{TOKEN}}` placeholders** with data from the spec. Every token in the template must be replaced before upload. Do not leave any `{{...}}` unfilled.
 
-The full spec schema lives in SKILL.md "Phase 3: Publish". Required keys: `mode`, `seed`, `exec`, `stats`, `landscape`, `options`, `companies`. Optional sections (the renderer auto-omits when absent): `current_state`, `patterns`, `decision_matrix` / `nrr_model` / `price_increase_timeline`, `expertise`, `rollout`, `context_quotes`, `secondary_findings`, `final_recommendation`.
+**Step 3 — Write the HTML file:**
+```
+write(file_path="/mnt/user-data/outputs/<seed-slug>-pricing-analysis.html", content=<filled HTML>)
+```
 
-**Mode → required-section mapping:**
-- `pricing`: `landscape.pricing_tiers` (3 tier tables), usually `price_increase_timeline`, optionally `nrr_model`
-- `packaging`: `landscape.feature_rows` (single table), usually `patterns`, `decision_matrix`, `rollout`
-- `both`: include sections from both modes; the renderer order matches their column in SKILL.md
+**Step 4 — Upload via MCP:**
+```
+upload_report(
+  filename="<seed-slug>-pricing-analysis.html",
+  file_path="/mnt/user-data/outputs/<seed-slug>-pricing-analysis.html"
+)
+```
 
-**Sorting:**
-- `pricing_tiers[].companies` ascending by entry price; seed row uses `is_seed: true` at its natural sorted position.
-- `feature_rows`: group by `approach` then by `tier_or_plan` (or by company name — your call, just consistent).
-- `price_increase_timeline.rows`: descending by `pct_change`.
+Run the curl command from the response to perform the upload. Return the public `https://share.pricingsaas.com/...` URL as the primary output.
 
-**Empty-data fallback:** Pass empty arrays / omit optional sections rather than fabricating. The renderer's `current_state`, `patterns`, etc. are no-ops when empty, so the section won't appear in the report.
+**Spec constraints:**
+- Required keys: `mode`, `seed`, `exec`, `stats`, `landscape`, `options`, `companies`
+- `pricing`: include `landscape.pricing_tiers` + `price_increase_timeline`
+- `packaging`: include `landscape.feature_rows` + `patterns` + `decision_matrix` + `rollout`
+- Sort `pricing_tiers[].companies` ascending by entry price; `price_increase_timeline.rows` descending by `pct_change`
+- Omit optional sections (`current_state`, `nrr_model`, `expertise`, etc.) rather than fabricating
 
 ---
 
@@ -373,7 +384,7 @@ Run this checklist mentally before outputting the final JSON. If any check fails
 
 ## Final response format
 
-Output the JSON spec as your final message. The poll delivers the report. Your message should be just the JSON fence — no prose needed.
+After upload, return the share URL as the primary output:
 
 > **{Pricing | Packaging} Brief: \<Seed Name\>** — N companies analyzed
 >
