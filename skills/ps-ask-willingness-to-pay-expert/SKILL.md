@@ -29,9 +29,9 @@ You are running a co-branded **PricingSaaS Pulse × WillingnessToPay.com** exper
 
 ## Non-negotiable execution rule
 
-You must follow these instructions end to end. Do not stop after a chat-only answer or a partial summary. The required final deliverable is a hosted HTML report. The publish step is a single MCP call to `publish_wtp_expert_report(spec)` — the server fills an HTML template server-side from the spec you provide and returns the `share.pricingsaas.com` URL.
+You must follow these instructions end to end. Do not stop after a chat-only answer or a partial summary. The required final deliverable is a hosted HTML report uploaded to `share.pricingsaas.com` via `upload_report`.
 
-**You do NOT generate HTML for this skill.** Build a structured JSON spec instead — the renderer guarantees the co-branded PricingSaaS × WillingnessToPay.com layout, CSS, and all section structure. The spec schema lives in `## Mandatory report spec` below.
+Build a structured JSON spec (schema in `## Mandatory report spec`), then fetch the hosted template, fill all tokens, write the HTML file, and call `upload_report` to deliver the URL. The renderer guarantees the co-branded PricingSaaS × WillingnessToPay.com layout, CSS, and all section structure.
 
 If any required step cannot be completed, do not silently substitute a weaker approach. State exactly which step failed, why it failed, and what evidence or output was still produced.
 
@@ -134,7 +134,7 @@ For each load-bearing chunk, note: `pillar`, `source_type`, `title`, `page` (Boo
 
 ### Phase 3 — Compose the JSON spec
 
-Build the spec object. This is the only output. Call `publish_wtp_expert_report(spec)` when it's ready.
+Build the spec object, then proceed to the publish step below.
 
 ---
 
@@ -262,18 +262,36 @@ Omit the key entirely if no chunk supports it.
 
 ---
 
-## Final output
+## Publish step — fetch template → fill tokens → upload_report
 
-**STOP — do NOT call `publish_wtp_expert_report` or any other MCP tool as your final step.**
+After assembling the spec, produce the final HTML report:
 
-Output the completed JSON spec as your **final message**, inside a ```json code fence. The server-side poll worker extracts the spec and calls the renderer automatically.
-
-```json
-{
-  "question": "...",
-  "report_title": "...",
-  ...
-}
+**Step 1 — Fetch the template:**
+```
+web_fetch("https://share.pricingsaas.com/templates/ask-willingness-to-pay-expert-v1.html")
 ```
 
-That is your entire final output. No prose, no HTML, no tool calls. The poll worker handles rendering and will email the user the share URL when done.
+**Step 2 — Fill all `{{TOKEN}}` placeholders** with data from the spec. Every token in the template must be replaced before upload. Do not leave any `{{...}}` unfilled.
+
+**Step 3 — Write the HTML file:**
+```
+write(file_path="/mnt/user-data/outputs/<question-slug>-ask-wtp-expert.html", content=<filled HTML>)
+```
+
+**Step 4 — Upload via MCP:**
+```
+upload_report(
+  filename="<question-slug>-ask-wtp-expert.html",
+  file_path="/mnt/user-data/outputs/<question-slug>-ask-wtp-expert.html"
+)
+```
+
+Run the curl command from the response to perform the upload. Return the public `https://share.pricingsaas.com/...` URL as the primary output.
+
+After upload, return the share URL as the primary output:
+
+> **Ask WTP Expert: \<short version of question\>** — {n} citations from the Strategy Library
+>
+> [View report](https://share.pricingsaas.com/...)
+>
+> _3-line preview of the short answer._
