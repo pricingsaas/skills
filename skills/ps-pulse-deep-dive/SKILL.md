@@ -2,6 +2,7 @@
 name: ps-pulse-deep-dive
 description: |
   Get a competitive pricing or packaging recommendation for your SaaS product. Benchmarks your pricing against 15-20 peers, surfaces price increase trends and AI bundling patterns, and delivers a data-backed recommendation report with NRR impact modeling. Also handles packaging decisions (bundle vs. add-on vs. new tier). Requires the PricingSaaS MCP (pulse.pricingsaas.com/mcp).
+license: MIT
 topics:
   - saas-pricing-intelligence
   - competitive-pricing
@@ -10,8 +11,6 @@ topics:
   - pricingsaas
   - pricingsaas-pulse
 ---
-
-# PricingSaaS Pulse — Pricing / Packaging Brief
 
 Get a data-backed pricing or packaging recommendation for your SaaS product, benchmarked against 12–18 real competitors tracked by PricingSaaS.
 

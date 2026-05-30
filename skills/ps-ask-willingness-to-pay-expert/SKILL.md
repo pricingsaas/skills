@@ -2,6 +2,7 @@
 name: ps-ask-willingness-to-pay-expert
 description: |
   Ask any pricing strategy question and get an expert answer grounded in the WillingnessToPay.com Strategy Library — books and video case studies on pricing methodology. Produces a co-branded shareable HTML report with the five-pillar WTP reasoning scaffold, concrete next steps, and deep-linked citations. Best for methodology questions ("how do I structure my plans", "how should I run a WTP study") rather than market data questions. Requires the PricingSaaS MCP (pulse.pricingsaas.com/mcp).
+license: MIT
 topics:
   - willingness-to-pay
   - pricing-research
@@ -10,8 +11,6 @@ topics:
   - pricingsaas
   - pricingsaas-pulse
 ---
-
-# Ask WTP Expert — Pricing Strategy Q&A
 
 Get expert pricing strategy advice grounded in the WillingnessToPay.com Strategy Library — books, webinars, and case studies from Ulrik Lehrskov-Schmidt and the WTP team. Ask any pricing methodology question and get a cited, actionable answer.
 

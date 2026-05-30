@@ -2,6 +2,7 @@
 name: ps-pulse-market-scan
 description: |
   Map the competitive landscape around any SaaS company. Give us a company name and we'll position it against three rings of competitors — direct alternatives, adjacent players, and the broader category — producing a branded HTML report with pricing comparisons, model analysis, and positioning observations. Requires the PricingSaaS MCP (pulse.pricingsaas.com/mcp).
+license: MIT
 topics:
   - saas-pricing-intelligence
   - competitive-pricing
@@ -10,8 +11,6 @@ topics:
   - pricingsaas
   - pricingsaas-pulse
 ---
-
-# PricingSaaS Pulse — Competitive Landscape
 
 Map the pricing landscape around any SaaS company. Give a company name and get a competitive map across three rings — direct competitors, adjacent players, and broader category — with pricing comparisons, model analysis, velocity trends, and strategic recommendations.
 
