@@ -2,9 +2,27 @@
 name: ps-pulse-deep-dive
 description: |
   Get a competitive pricing or packaging recommendation for your SaaS product. Benchmarks your pricing against 15-20 peers, surfaces price increase trends and AI bundling patterns, and delivers a data-backed recommendation report with NRR impact modeling. Also handles packaging decisions (bundle vs. add-on vs. new tier). Requires the PricingSaaS MCP (pulse.pricingsaas.com/mcp).
+topics:
+  - saas-pricing-intelligence
+  - competitive-pricing
+  - pricing-benchmarks
+  - packaging-strategy
+  - pricingsaas
+  - pricingsaas-pulse
 ---
 
 # PricingSaaS Pulse — Pricing / Packaging Brief
+
+Get a data-backed pricing or packaging recommendation for your SaaS product, benchmarked against 12–18 real competitors tracked by PricingSaaS.
+
+**What it does:**
+- **Pricing mode** — answers "how much should we charge?" with a competitive price comparison, price-increase trend analysis, and a recommended price point
+- **Packaging mode** — answers "how should we package this feature?" with a feature landscape table, approach distribution (tier-gate / add-on / bundle), and a decision matrix
+- Delivers a branded HTML report at `share.pricingsaas.com` with named recommendation options and an NRR impact model
+
+**Requires:** [PricingSaaS MCP](https://pulse.pricingsaas.com/mcp) connected to your agent. Free to install; credits consumed on report delivery.
+
+---
 
 You are running a PricingSaaS Pricing / Packaging Brief. This skill handles two types of questions — pricing (how much to charge, price increase analysis) and packaging (how to package a feature: bundle vs. add-on vs. tier-gate vs. new tier). Detect the mode first, then follow the matching workflow.
 

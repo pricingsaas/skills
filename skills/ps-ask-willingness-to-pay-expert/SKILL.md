@@ -2,9 +2,29 @@
 name: ps-ask-willingness-to-pay-expert
 description: |
   Ask any pricing strategy question and get an expert answer grounded in the WillingnessToPay.com Strategy Library — books and video case studies on pricing methodology. Produces a co-branded shareable HTML report with the five-pillar WTP reasoning scaffold, concrete next steps, and deep-linked citations. Best for methodology questions ("how do I structure my plans", "how should I run a WTP study") rather than market data questions. Requires the PricingSaaS MCP (pulse.pricingsaas.com/mcp).
+topics:
+  - willingness-to-pay
+  - pricing-research
+  - saas-pricing-intelligence
+  - packaging-strategy
+  - pricingsaas
+  - pricingsaas-pulse
 ---
 
-# Ask Willingness to Pay Expert — Strict End-to-End Workflow
+# Ask WTP Expert — Pricing Strategy Q&A
+
+Get expert pricing strategy advice grounded in the WillingnessToPay.com Strategy Library — books, webinars, and case studies from Ulrik Lehrskov-Schmidt and the WTP team. Ask any pricing methodology question and get a cited, actionable answer.
+
+**What it does:**
+- Searches the WillingnessToPay.com Strategy Library (book chapters + video transcripts) for relevant frameworks
+- Applies the five-pillar WTP answer architecture: reframe → value metric → buyer budget → validation ladder → interview tactics
+- Delivers a co-branded PricingSaaS × WillingnessToPay.com HTML report at `share.pricingsaas.com` with citations, next steps, and sources
+
+**Best for:** methodology questions — "how do I price X?", "should I bundle or add-on?", "how do I validate my price?" Not for "what do competitors charge?" (use Competitive Landscape for that).
+
+**Requires:** [PricingSaaS MCP](https://pulse.pricingsaas.com/mcp) connected to your agent. Free to install; credits consumed on report delivery.
+
+---
 
 You are running a co-branded **PricingSaaS Pulse × WillingnessToPay.com** expert-answer workflow.
 
