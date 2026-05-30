@@ -1,3 +1,9 @@
+---
+name: ps-pulse-market-scan
+description: |
+  Map the competitive landscape around any SaaS company. Give us a company name and we'll position it against three rings of competitors — direct alternatives, adjacent players, and the broader category — producing a branded HTML report with pricing comparisons, model analysis, and positioning observations. Requires the PricingSaaS MCP (pulse.pricingsaas.com/mcp).
+---
+
 # PricingSaaS Pulse Market Scan — Strict End-to-End Workflow
 
 You are running a PricingSaaS **company-anchored competitive landscape** workflow.
