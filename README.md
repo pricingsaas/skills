@@ -17,7 +17,7 @@ npx skills add pricingsaas/skills --skill pulse-market-scan -a claude-code
 ## Requirements
 
 All skills require the **PricingSaaS MCP** to be connected to your agent.
-Setup instructions: [pulse.pricingsaas.com/mcp](https://pulse.pricingsaas.com/mcp)
+Setup instructions: [mcp.pricingsaas.com](https://mcp.pricingsaas.com)
 
 ## Skills
 
